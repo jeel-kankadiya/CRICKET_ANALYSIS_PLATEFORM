@@ -1,0 +1,185 @@
+"""
+train_models.py
+----------------
+Trains and evaluates three win-probability models:
+    1. Logistic Regression  (interpretable baseline)
+    2. Random Forest        (non-linear interactions)
+    3. Gradient Boosting     (best raw accuracy, usually)
+
+Uses a chronological train/test split (train on earlier seasons, test on the
+most recent ones) since shuffling would leak future information into
+training -- the correct validation strategy for time-series sports data.
+
+Saves the best model + a metrics/feature-importance report to /models and
+/outputs.
+"""
+
+import os
+import json
+import numpy as np
+import pandas as pd
+import joblib
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score, log_loss, brier_score_loss,
+    classification_report, confusion_matrix
+)
+
+from feature_engineering import build_feature_matrix, FEATURE_COLS
+
+ROOT = os.path.join(os.path.dirname(__file__), "..")
+MODELS_DIR = os.path.join(ROOT, "models")
+OUTPUTS_DIR = os.path.join(ROOT, "outputs")
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+
+def prepare_dataset():
+    df, elo = build_feature_matrix()
+    df = df[df["is_decisive"]].copy()          # drop ties / no-result
+    df = df.dropna(subset=FEATURE_COLS + ["team1_won"])
+    return df, elo
+
+
+def chronological_split(df, test_size=0.2):
+    df = df.sort_values("match_date")
+    split_idx = int(len(df) * (1 - test_size))
+    train, test = df.iloc[:split_idx], df.iloc[split_idx:]
+    return train, test
+
+
+def evaluate(name, model, X_test, y_test, scaled=False, scaler=None):
+    X_eval = scaler.transform(X_test) if scaled else X_test
+    proba = model.predict_proba(X_eval)[:, 1]
+    preds = model.predict(X_eval)
+
+    metrics = {
+        "accuracy": accuracy_score(y_test, preds),
+        "roc_auc": roc_auc_score(y_test, proba),
+        "log_loss": log_loss(y_test, proba),
+        "brier_score": brier_score_loss(y_test, proba),
+    }
+    print(f"\n=== {name} ===")
+    for k, v in metrics.items():
+        print(f"  {k:12s}: {v:.4f}")
+    print(classification_report(y_test, preds, target_names=["team2_won", "team1_won"]))
+    return metrics, proba
+
+
+def cross_validate_report(df):
+    """5-fold TimeSeriesSplit CV so the reported metric isn't a single lucky/
+    unlucky split. Each fold trains on all matches before a point in time and
+    validates on the following chunk -- still fully chronological."""
+    df = df.sort_values("match_date").reset_index(drop=True)
+    X, y = df[FEATURE_COLS].values, df["team1_won"].values
+    tscv = TimeSeriesSplit(n_splits=5)
+
+    cv_results = {"logistic_regression": [], "random_forest": [], "gradient_boosting": []}
+
+    for train_idx, test_idx in tscv.split(X):
+        X_train, X_test = X[train_idx], X[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx]
+
+        scaler = StandardScaler().fit(X_train)
+        lr = LogisticRegression(max_iter=1000).fit(scaler.transform(X_train), y_train)
+        rf = RandomForestClassifier(n_estimators=300, max_depth=6, min_samples_leaf=10,
+                                     random_state=42, n_jobs=-1).fit(X_train, y_train)
+        gb = GradientBoostingClassifier(n_estimators=200, max_depth=3, learning_rate=0.05,
+                                         random_state=42).fit(X_train, y_train)
+
+        cv_results["logistic_regression"].append(
+            roc_auc_score(y_test, lr.predict_proba(scaler.transform(X_test))[:, 1]))
+        cv_results["random_forest"].append(
+            roc_auc_score(y_test, rf.predict_proba(X_test)[:, 1]))
+        cv_results["gradient_boosting"].append(
+            roc_auc_score(y_test, gb.predict_proba(X_test)[:, 1]))
+
+    print("\n=== 5-fold Time-Series Cross-Validation (ROC-AUC) ===")
+    summary = {}
+    for name, scores in cv_results.items():
+        summary[name] = {"mean_roc_auc": float(np.mean(scores)), "std_roc_auc": float(np.std(scores)),
+                          "fold_scores": [round(s, 4) for s in scores]}
+        print(f"  {name:20s} mean={np.mean(scores):.4f}  std={np.std(scores):.4f}  folds={[round(s,3) for s in scores]}")
+
+    with open(os.path.join(OUTPUTS_DIR, "cv_results.json"), "w") as f:
+        json.dump(summary, f, indent=2)
+    return summary
+
+
+def main():
+    df, elo = prepare_dataset()
+    cross_validate_report(df)
+    train, test = chronological_split(df, test_size=0.2)
+
+    print(f"Train matches: {len(train)}  ({train['match_date'].min().date()} to {train['match_date'].max().date()})")
+    print(f"Test matches:  {len(test)}  ({test['match_date'].min().date()} to {test['match_date'].max().date()})")
+
+    X_train, y_train = train[FEATURE_COLS], train["team1_won"]
+    X_test, y_test = test[FEATURE_COLS], test["team1_won"]
+
+    scaler = StandardScaler().fit(X_train)
+    X_train_scaled = scaler.transform(X_train)
+
+    results = {}
+
+    # 1. Logistic Regression (needs scaling)
+    lr = LogisticRegression(max_iter=1000, C=1.0)
+    lr.fit(X_train_scaled, y_train)
+    m, _ = evaluate("Logistic Regression", lr, X_test, y_test, scaled=True, scaler=scaler)
+    results["logistic_regression"] = m
+
+    # 2. Random Forest (no scaling needed)
+    rf = RandomForestClassifier(
+        n_estimators=300, max_depth=6, min_samples_leaf=10,
+        random_state=42, n_jobs=-1
+    )
+    rf.fit(X_train, y_train)
+    m, _ = evaluate("Random Forest", rf, X_test, y_test)
+    results["random_forest"] = m
+
+    # 3. Gradient Boosting
+    gb = GradientBoostingClassifier(
+        n_estimators=200, max_depth=3, learning_rate=0.05, random_state=42
+    )
+    gb.fit(X_train, y_train)
+    m, _ = evaluate("Gradient Boosting", gb, X_test, y_test)
+    results["gradient_boosting"] = m
+
+    # Pick best model by ROC-AUC on the held-out test set
+    best_name = max(results, key=lambda k: results[k]["roc_auc"])
+    print(f"\n>>> Best model: {best_name} (ROC-AUC={results[best_name]['roc_auc']:.4f})")
+
+    model_map = {"logistic_regression": lr, "random_forest": rf, "gradient_boosting": gb}
+    joblib.dump(model_map["logistic_regression"], os.path.join(MODELS_DIR, "logistic_regression.pkl"))
+    joblib.dump(rf, os.path.join(MODELS_DIR, "random_forest.pkl"))
+    joblib.dump(gb, os.path.join(MODELS_DIR, "gradient_boosting.pkl"))
+    joblib.dump(scaler, os.path.join(MODELS_DIR, "scaler.pkl"))
+    with open(os.path.join(MODELS_DIR, "best_model.txt"), "w") as f:
+        f.write(best_name)
+
+    # Feature importances (tree models) for interpretability
+    importances = pd.DataFrame({
+        "feature": FEATURE_COLS,
+        "random_forest_importance": rf.feature_importances_,
+        "gradient_boosting_importance": gb.feature_importances_,
+        "logistic_regression_coef": lr.coef_[0],
+    }).sort_values("random_forest_importance", ascending=False)
+
+    importances.to_csv(os.path.join(OUTPUTS_DIR, "feature_importance.csv"), index=False)
+    print("\nFeature importances:\n", importances.to_string(index=False))
+
+    with open(os.path.join(OUTPUTS_DIR, "model_metrics.json"), "w") as f:
+        json.dump(results, f, indent=2)
+
+    with open(os.path.join(OUTPUTS_DIR, "elo_final_ratings.json"), "w") as f:
+        json.dump({k: round(v, 1) for k, v in elo.items()}, f, indent=2)
+
+    return results, importances
+
+
+if __name__ == "__main__":
+    main()
