@@ -20,6 +20,9 @@ ENV/
 .vscode/
 .idea/
 
+# Large processed data files (regenerate with src/data_cleaning.py)
+data/processed/
+
 # Environment variables
 .env
 .env.local
