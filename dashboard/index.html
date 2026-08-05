@@ -294,10 +294,15 @@
       <h2>Career Leaderboards</h2>
       <p class="section-desc">Impact scores blend average, strike rate/economy, and career volume (percentile-ranked, qualified players only) into a single 0–100 score. The All-Rounder Index uses the <i>minimum</i> of batting and bowling impact — so it only rewards genuine dual contributors.</p>
     </div>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="bat">Top Batters</button>
-      <button class="tab-btn" data-tab="bowl">Top Bowlers</button>
-      <button class="tab-btn" data-tab="allr">All-Rounders</button>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+      <div class="tabs" style="margin:0;">
+        <button class="tab-btn active" data-tab="bat">Top Batters</button>
+        <button class="tab-btn" data-tab="bowl">Top Bowlers</button>
+        <button class="tab-btn" data-tab="allr">All-Rounders</button>
+      </div>
+      <div style="width:280px; max-width:100%;">
+        <input type="text" id="playerSearchInput" placeholder="🔍 Search player or team..." style="width:100%; background:var(--bg-panel-alt); color:var(--chalk); border:1px solid var(--line); padding:10px 14px; font-family:'Inter',sans-serif; font-size:14px; border-radius:4px; outline:none;" />
+      </div>
     </div>
     <div class="card">
       <table>
@@ -677,12 +682,27 @@ const leaderConfigs = {
   }
 };
 
-function renderLeaderboard(tab){
-  const cfg = leaderConfigs[tab];
+let currentLeaderTab = 'bat';
+
+function renderLeaderboard(tab, query = ''){
+  currentLeaderTab = tab || currentLeaderTab;
+  const cfg = leaderConfigs[currentLeaderTab];
   const head = document.getElementById('leaderHead');
   const body = document.getElementById('leaderBody');
   head.innerHTML = '<tr><th>#</th>' + cfg.cols.map(c=>`<th>${c.h}</th>`).join('') + '</tr>';
-  body.innerHTML = cfg.data.map((row,i)=>{
+  
+  const q = (query || '').trim().toLowerCase();
+  const filteredData = q 
+    ? cfg.data.filter(row => (row.PlayerName || '').toLowerCase().includes(q) || (row.Teams || '').toLowerCase().includes(q))
+    : cfg.data;
+
+  if(filteredData.length === 0){
+    const tabName = currentLeaderTab === 'bat' ? 'Top Batters' : currentLeaderTab === 'bowl' ? 'Top Bowlers' : 'All-Rounders';
+    body.innerHTML = `<tr><td colspan="${cfg.cols.length + 1}" style="text-align:center; padding:24px; color:var(--slate);">No player or team matching "${query}" found in ${tabName}</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = filteredData.map((row,i)=>{
     const cells = cfg.cols.map(c=>{
       if(c.bar){
         const val = row[c.k];
@@ -695,13 +715,23 @@ function renderLeaderboard(tab){
     return `<tr><td class="rank">${i+1}</td>${cells}</tr>`;
   }).join('');
 }
+
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    renderLeaderboard(btn.dataset.tab);
+    const sInput = document.getElementById('playerSearchInput');
+    renderLeaderboard(btn.dataset.tab, sInput ? sInput.value : '');
   });
 });
+
+const sInput = document.getElementById('playerSearchInput');
+if(sInput){
+  sInput.addEventListener('input', (e)=>{
+    renderLeaderboard(currentLeaderTab, e.target.value);
+  });
+}
+
 renderLeaderboard('bat');
 
 // ---------- TOSS / VENUE ----------
