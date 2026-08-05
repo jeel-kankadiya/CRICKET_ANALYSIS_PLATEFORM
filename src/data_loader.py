@@ -1,4 +1,4 @@
-﻿"""
+"""
 data_loader.py
 --------------
 PURPOSE:
@@ -267,6 +267,8 @@ def load_points_table():
         - Finding the closest points races (smallest 1st–2nd place gap)
     """
     df = pd.read_csv(os.path.join(DATA_DIR, "ipl_points_table.csv"))
+    # Filter out 2026 season data as requested
+    df = df[~df["season"].astype(str).str.contains("2026", na=False)]
     numeric_cols = ["matches_played", "wins", "losses", "no_result", "points", "nrr"]
     for col in numeric_cols:
         if col in df.columns:
