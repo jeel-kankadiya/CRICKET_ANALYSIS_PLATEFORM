@@ -1,18 +1,17 @@
-"""
+﻿"""
 dataset_analytics.py
 ---------------------
-Computes analytics from the 5 new datasets:
+PURPOSE:
+    Computes domain-specific analytics from the 5 supplementary IPL datasets:
+    1. Auction trends (most expensive buys, average spend by role, season trends)
+    2. Venue intelligence (pitch characteristics, bat-first vs chase win rates)
+    3. Points table history (season champions, playoff qualification rates, close races)
+    4. Player season trends (top run scorers, top wicket-takers, career trajectories)
+    5. Player availability (absences by reason, team injury rates)
 
-  1. Auction trends     — most expensive buys, value-for-money index
-  2. Venue intelligence — pitch-type win%, bat-first vs chase analysis
-  3. Points table       — season champions, closest races, NRR bands
-  4. Player season      — career run/wicket trajectories per player
-  5. Availability       — team win-rate when key players are absent
-
-All functions return serialization-ready Python dicts/lists (JSON-safe).
+All functions return serialization-ready Python dicts/lists for JSON output.
 """
 
-# pyrefly: ignore [missing-import]
 import numpy as np
 import pandas as pd
 import os
@@ -31,11 +30,19 @@ os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 
 # ─────────────────────────────────────────────────────────
-# Helper
+# HELPER UTILITIES
 # ─────────────────────────────────────────────────────────
 
 def _safe(val):
-    """Convert numpy scalars / NaN to JSON-safe Python types."""
+    """
+    Converts NumPy scalars and NaN/None values into native JSON-safe Python types.
+
+    Parameters:
+        val: Any scalar value (int, float, np.int64, np.nan, etc.)
+
+    Returns:
+        Native int, float, or None suitable for json.dump().
+    """
     if val is None or (isinstance(val, float) and np.isnan(val)):
         return None
     if isinstance(val, (np.integer,)):
@@ -45,7 +52,17 @@ def _safe(val):
     return val
 
 
-def _clean_records(df, cols):
+def _clean_records(df: pd.DataFrame, cols: list) -> list:
+    """
+    Converts selected columns of a DataFrame into a list of JSON-safe dictionaries.
+
+    Parameters:
+        df (pd.DataFrame): Input DataFrame.
+        cols (list): List of column names to extract.
+
+    Returns:
+        list: List of row dictionaries with clean primitive Python types.
+    """
     records = []
     for row in df[cols].to_dict(orient="records"):
         records.append({k: _safe(v) for k, v in row.items()})
@@ -53,22 +70,27 @@ def _clean_records(df, cols):
 
 
 # ─────────────────────────────────────────────────────────
-# 1. Auction Analytics
+# 1. AUCTION ANALYTICS
 # ─────────────────────────────────────────────────────────
 
-def auction_analytics():
+def auction_analytics() -> dict:
     """
+    Analyzes historical IPL player auction data.
+
+    Calculates:
+      - top_buys_per_season  : Top 5 most expensive sold players for each season.
+      - most_expensive_ever  : Top 20 all-time highest auction bids in IPL history.
+      - avg_price_by_role    : Mean, median, max prices broken down by player role.
+      - season_spend_trend   : Total and average auction expenditure per season.
+
     Returns:
-      - top_buys_per_season  : 5 most expensive sold players per season
-      - most_expensive_ever  : top 20 all-time auction buys
-      - avg_price_by_role    : average sold price broken down by player role
-      - season_spend_trend   : total auction spend per season
+        dict: Four analytical components formatted as clean dictionaries.
     """
     df = load_auction_data()
     sold = df[df["sold"] == "Yes"].copy()
     sold["sold_price_lakhs"] = pd.to_numeric(sold["sold_price_lakhs"], errors="coerce")
 
-    # Top 5 buys per season
+    # 1. Top 5 sold players per season
     top_season = (
         sold.sort_values("sold_price_lakhs", ascending=False)
             .groupby("season")
@@ -80,14 +102,14 @@ def auction_analytics():
         ["season", "player_name", "role", "team_name", "base_price_lakhs", "sold_price_lakhs"]
     )
 
-    # Top 20 all-time buys
+    # 2. Top 20 all-time highest buys
     top20 = sold.sort_values("sold_price_lakhs", ascending=False).head(20)
     most_expensive_ever = _clean_records(
         top20,
         ["season", "player_name", "role", "team_name", "sold_price_lakhs"]
     )
 
-    # Average price by role
+    # 3. Aggregated price by player role
     role_avg = (
         sold.groupby("role")["sold_price_lakhs"]
             .agg(["mean", "median", "max", "count"])
@@ -98,7 +120,7 @@ def auction_analytics():
     role_avg["median_price"] = role_avg["median_price"].round(1)
     avg_price_by_role = _clean_records(role_avg, role_avg.columns.tolist())
 
-    # Season spend trend
+    # 4. Total and average spend per season
     spend = (
         sold.groupby("season")["sold_price_lakhs"]
             .agg(total_spend="sum", avg_spend="mean", lots_sold="count")
@@ -117,20 +139,25 @@ def auction_analytics():
 
 
 # ─────────────────────────────────────────────────────────
-# 2. Venue Intelligence
+# 2. VENUE INTELLIGENCE
 # ─────────────────────────────────────────────────────────
 
-def venue_intelligence():
+def venue_intelligence() -> dict:
     """
+    Analyzes stadium attributes and match pitch conditions.
+
+    Calculates:
+      - venue_profiles      : Comprehensive physical and statistical profile per ground.
+      - pitch_type_summary  : Win % for batting first and avg scores by pitch surface (flat, green, dry, etc.).
+      - top_batting_venues  : Grounds with highest average first-innings scores.
+      - top_chasing_venues  : Grounds with lowest bat-first win rates (most favorable for chasing).
+
     Returns:
-      - venue_profiles      : all venue attributes sorted by matches hosted
-      - pitch_type_summary  : avg bat_first_win_pct & avg first-innings score by pitch type
-      - top_batting_venues  : highest average first-innings score venues
-      - top_chasing_venues  : venues most favourable to chasing teams
+        dict: Four venue intelligence metrics.
     """
     df = load_venue_details()
 
-    # All venues sorted by activity
+    # All venues sorted by match hosting activity
     all_venues = df.sort_values("total_matches_hosted", ascending=False)
     venue_profiles = _clean_records(all_venues, [
         "venue", "city", "capacity", "pitch_type",
@@ -138,7 +165,7 @@ def venue_intelligence():
         "dew_factor", "boundary_size_m", "total_matches_hosted"
     ])
 
-    # Pitch type summary
+    # Performance breakdown by pitch type
     pitch_summary = (
         df.groupby("pitch_type")
           .agg(
@@ -153,11 +180,11 @@ def venue_intelligence():
         pitch_summary[col] = pitch_summary[col].round(1)
     pitch_type_summary = _clean_records(pitch_summary, pitch_summary.columns.tolist())
 
-    # Top batting venues
+    # Highest scoring grounds
     top_bat = df.nlargest(10, "avg_first_innings_score")
     top_batting_venues = _clean_records(top_bat, ["venue", "city", "avg_first_innings_score", "pitch_type"])
 
-    # Top chasing venues (low bat-first win pct = good for chasing)
+    # Grounds where chasing team wins most frequently
     top_chase = df.nsmallest(10, "bat_first_win_pct")
     top_chasing_venues = _clean_records(top_chase, ["venue", "city", "bat_first_win_pct", "dew_factor"])
 
@@ -170,30 +197,35 @@ def venue_intelligence():
 
 
 # ─────────────────────────────────────────────────────────
-# 3. Points Table Analytics
+# 3. POINTS TABLE ANALYTICS
 # ─────────────────────────────────────────────────────────
 
-def points_table_analytics():
+def points_table_analytics() -> dict:
     """
+    Analyzes historical IPL league standings and playoff outcomes.
+
+    Calculates:
+      - full_points_table    : Complete season-by-season standings.
+      - season_champions     : Champion team per season with tournament stats.
+      - qualification_stats  : Playoff qualification rate (%) per franchise.
+      - closest_title_races  : Seasons with smallest points gap between 1st and 2nd place.
+
     Returns:
-      - full_points_table    : all records (season × team)
-      - season_champions     : champion per season with their stats
-      - qualification_stats  : how often each team has qualified for playoffs
-      - closest_title_races  : seasons where top-2 teams had smallest points gap
+        dict: Four standings metrics.
     """
     df = load_points_table()
 
-    # Full table sorted by season then points desc
+    # Full table sorted by season and points
     full = df.sort_values(["season", "points"], ascending=[True, False])
     full_points_table = _clean_records(full, full.columns.tolist())
 
-    # Season champions
+    # Filter champions per season
     champs = df[df["champion"] == 1].sort_values("season")
     season_champions = _clean_records(champs, [
         "season", "team_name", "matches_played", "wins", "losses", "points", "nrr"
     ])
 
-    # Qualification frequency per team
+    # Qualification rate calculation per team
     qual = (
         df.groupby("team_name")
           .agg(
@@ -204,11 +236,11 @@ def points_table_analytics():
           )
           .reset_index()
     )
-    qual["qual_rate"] = (qual["times_qualified"] / qual["seasons_played"] * 100).round(1)
+    qual["qual_rate"] = (qual["times_qualified"] / qual["seasons_played"] * 100.0).round(1)
     qual_sorted = qual.sort_values("times_champion", ascending=False)
     qualification_stats = _clean_records(qual_sorted, qual_sorted.columns.tolist())
 
-    # Closest title races: smallest gap between 1st and 2nd place points in group stage
+    # Closest title races: minimum gap between 1st and 2nd team points
     race_rows = []
     for season, grp in df.groupby("season"):
         top2 = grp.nlargest(2, "points")
@@ -235,20 +267,25 @@ def points_table_analytics():
 
 
 # ─────────────────────────────────────────────────────────
-# 4. Player Season Trends
+# 4. PLAYER SEASON TRENDS
 # ─────────────────────────────────────────────────────────
 
-def player_season_trends():
+def player_season_trends() -> dict:
     """
+    Analyzes seasonal player performances and multi-year career arcs.
+
+    Calculates:
+      - top_run_scorers_by_season   : Orange Cap contenders (top 5 batters per season).
+      - top_wicket_takers_by_season : Purple Cap contenders (top 5 bowlers per season).
+      - career_trajectories         : Season-by-season progression for top 20 all-time run scorers.
+      - season_batting_leaders      : Top 10 batters per season for dashboard leaderboards.
+
     Returns:
-      - top_run_scorers_by_season  : top 5 run-scorers per season
-      - top_wicket_takers_by_season: top 5 wicket-takers per season
-      - career_trajectories        : per-season stats for top 20 career run-scorers
-      - season_batting_leaders     : top 10 batters per season (for leaderboard)
+        dict: Four seasonal trend records.
     """
     df = load_player_season_stats()
 
-    # Top 5 run-scorers per season
+    # Top 5 run scorers per season
     runs_top = (
         df.sort_values("runs", ascending=False)
           .groupby("season")
@@ -260,7 +297,7 @@ def player_season_trends():
                    "batting_avg", "strike_rate", "fours", "sixes"]
     )
 
-    # Top 5 wicket-takers per season
+    # Top 5 wicket takers per season
     wkts_top = (
         df.sort_values("wickets", ascending=False)
           .groupby("season")
@@ -271,7 +308,7 @@ def player_season_trends():
         wkts_top, ["season", "player_name", "team_name", "matches", "wickets", "economy", "bowling_avg"]
     )
 
-    # Career trajectories: top 20 overall run-scorers
+    # Career trajectory for top 20 overall run scorers
     career_totals = df.groupby("player_name")["runs"].sum().nlargest(20).index.tolist()
     traj_df = df[df["player_name"].isin(career_totals)].sort_values(["player_name", "season"])
     career_trajectories = _clean_records(
@@ -279,7 +316,7 @@ def player_season_trends():
                   "batting_avg", "strike_rate", "wickets", "economy"]
     )
 
-    # Batting leaders (top 10 per season — for dashboard leaderboard table)
+    # Top 10 batters per season
     bat_leaders = (
         df.sort_values("runs", ascending=False)
           .groupby("season")
@@ -299,34 +336,34 @@ def player_season_trends():
 
 
 # ─────────────────────────────────────────────────────────
-# 5. Player Availability Analytics
+# 5. PLAYER AVAILABILITY ANALYTICS
 # ─────────────────────────────────────────────────────────
 
-def availability_analytics():
+def availability_analytics() -> dict:
     """
+    Analyzes match-level player availability and injury impact.
+
+    Calculates:
+      - most_absent_players   : Players missing highest percentage of team matches.
+      - absence_by_reason     : Breakdown of absences (Injury, National Duty, Personal, Rest).
+      - team_absence_rate     : Average missing player records per match by franchise.
+      - season_injury_trend   : Total missing player instances per season over time.
+
     Returns:
-      - most_absent_players   : players with highest absence rates
-      - absence_by_reason     : breakdown of absences by reason
-      - team_absence_rate     : average absences per match per team
-      - season_injury_trend   : total absences per season
+        dict: Four player availability metrics.
     """
     df = load_player_availability()
-
     absent = df[~df["is_available"]].copy()
 
-    # Most absent players
-    absent_counts = (
-        absent.groupby("player_name").size().reset_index(name="absences")
-    )
-    total_counts = (
-        df.groupby("player_name").size().reset_index(name="total_records")
-    )
+    # Most absent players ranking
+    absent_counts = absent.groupby("player_name").size().reset_index(name="absences")
+    total_counts = df.groupby("player_name").size().reset_index(name="total_records")
     ab_rate = absent_counts.merge(total_counts, on="player_name")
-    ab_rate["absence_pct"] = (ab_rate["absences"] / ab_rate["total_records"] * 100).round(1)
+    ab_rate["absence_pct"] = (ab_rate["absences"] / ab_rate["total_records"] * 100.0).round(1)
     ab_rate = ab_rate.sort_values("absences", ascending=False).head(20)
     most_absent_players = _clean_records(ab_rate, ["player_name", "absences", "absence_pct"])
 
-    # Absence breakdown by reason
+    # Categorized breakdown of reasons for absence
     reason_counts = (
         absent[absent["reason"] != "Fit"]
               .groupby("reason").size()
@@ -335,7 +372,7 @@ def availability_analytics():
     )
     absence_by_reason = _clean_records(reason_counts, ["reason", "count"])
 
-    # Team absence rate
+    # Team absence frequency
     team_matches = df.groupby("team_name")["match_id"].nunique().reset_index(name="match_count")
     team_absences = absent.groupby("team_name").size().reset_index(name="total_absences")
     team_abs = team_matches.merge(team_absences, on="team_name", how="left").fillna(0)
@@ -347,10 +384,8 @@ def availability_analytics():
         team_abs, ["team_name", "match_count", "total_absences", "absences_per_match"]
     )
 
-    # Season injury trend
-    season_trend = (
-        absent.groupby("season").size().reset_index(name="total_absences")
-    )
+    # Seasonal injury trend
+    season_trend = absent.groupby("season").size().reset_index(name="total_absences")
     season_injury_trend = _clean_records(season_trend, ["season", "total_absences"])
 
     return {
@@ -362,10 +397,17 @@ def availability_analytics():
 
 
 # ─────────────────────────────────────────────────────────
-# Main
+# MAIN AGGREGATOR
 # ─────────────────────────────────────────────────────────
 
-def build_all_analytics():
+def build_all_analytics() -> dict:
+    """
+    Executes all 5 analytics sub-modules and returns a unified JSON-serializable dictionary.
+
+    Returns:
+        dict: Master analytics bundle containing 'auction', 'venue_intel',
+              'points_table', 'player_trends', and 'availability'.
+    """
     return {
         "auction":      auction_analytics(),
         "venue_intel":  venue_intelligence(),

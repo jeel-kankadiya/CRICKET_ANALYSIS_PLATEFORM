@@ -1,15 +1,14 @@
-"""
+﻿"""
 match_simulator.py
 --------------------
-Given two team names (+ optional venue / toss info), reconstructs the same
-pre-match features used in training (current Elo, current form, current
-head-to-head, venue record) from the full match history, feeds them into
-the trained Gradient Boosting model, and returns a win-probability estimate
-for a hypothetical / upcoming fixture.
+PURPOSE:
+    Simulates hypothetical or upcoming IPL fixtures using trained Machine Learning models.
 
-This is the "Match Simulation" component of the platform: it lets a user
-ask "what if Team A played Team B at Venue X tomorrow?" without needing an
-actual played match row.
+WHAT IT DOES:
+    - Accepts any two team names, optional venue, and toss scenario.
+    - Reconstructs pre-match features (Elo ratings, rolling form, momentum, venue win rates, H2H).
+    - Loads the trained Gradient Boosting model from /models.
+    - Predicts calibrated win probabilities (%) for both competing teams.
 """
 
 import os
@@ -24,37 +23,51 @@ MODELS_DIR = os.path.join(ROOT, "models")
 
 
 class MatchSimulator:
+    """
+    Class responsible for loading trained models and predicting match outcomes for arbitrary fixtures.
+    """
+
     def __init__(self):
+        """
+        Initializes the simulator:
+        1. Loads historical feature matrix and computes final Elo ratings.
+        2. Loads the trained Gradient Boosting model from models/gradient_boosting.pkl.
+        3. Builds current state dictionary snapshots for all teams.
+        """
         self.df, self.elo = build_feature_matrix()
         self.model = joblib.load(os.path.join(MODELS_DIR, "gradient_boosting.pkl"))
         self._build_current_state()
 
     def _build_current_state(self):
-        """Snapshot each team's latest known form/elo/venue stats from full history."""
+        """
+        Extracts current (latest) ratings, form, momentum, and venue/head-to-head records
+        across all past matches to use as baseline inputs for new simulation queries.
+        """
         df = self.df
-        self.current_elo = self.elo  # final ratings after all matches
+        self.current_elo = self.elo  # Final Elo rating per team
 
-        # latest rolling form per team = form value going INTO their most recent match,
-        # updated one more step using their most recent result
+        # Capture latest rolling form per team (win rate over last 5 matches)
         last_form = {}
         for _, row in df.sort_values("match_date").iterrows():
             last_form[row["team1_name"]] = row["team1_form"]
             last_form[row["team2_name"]] = row["team2_form"]
         self.current_form = last_form
 
+        # Capture latest momentum per team (mean win margin over last 5 matches)
         last_momentum = {}
         for _, row in df.sort_values("match_date").iterrows():
             last_momentum[row["team1_name"]] = row["team1_momentum"]
             last_momentum[row["team2_name"]] = row["team2_momentum"]
         self.current_momentum = last_momentum
 
+        # Capture total matches played per team
         experience = {}
         for _, row in df.sort_values("match_date").iterrows():
             experience[row["team1_name"]] = row["team1_experience"]
             experience[row["team2_name"]] = row["team2_experience"]
         self.current_experience = experience
 
-        # venue win rates: aggregate across ALL history (not just pre-match snapshot)
+        # Aggregate venue win rates across all historical decisive matches
         venue_stats = {}
         for _, row in df[df["is_decisive"]].iterrows():
             for team, venue, won in [
@@ -66,35 +79,56 @@ class MatchSimulator:
                 venue_stats[key] = (w + int(won), p + 1)
         self.venue_stats = venue_stats
 
-        # head-to-head across all history
+        # Aggregate head-to-head records across all historical decisive matches
         h2h = {}
         for _, row in df[df["is_decisive"]].iterrows():
             t1, t2 = row["team1_name"], row["team2_name"]
             key = tuple(sorted([t1, t2]))
             w, p = h2h.get(key, (0, 0))
-            t1_won = row["team1_won"] == 1
+            t1_won = (row["team1_won"] == 1)
             win_for_key0 = (key[0] == t1 and t1_won) or (key[0] == t2 and not t1_won)
             h2h[key] = (w + int(win_for_key0), p + 1)
         self.h2h_stats = h2h
 
-    def venue_winrate(self, team, venue):
+    def venue_winrate(self, team: str, venue: str) -> float:
+        """
+        Calculates a team's historical win rate at a specific venue.
+
+        Returns 0.5 (neutral) if no matches have been played by the team at that venue.
+        """
         w, p = self.venue_stats.get((team, venue), (0, 0))
         return w / p if p > 0 else 0.5
 
-    def h2h_winrate(self, team_a, team_b):
+    def h2h_winrate(self, team_a: str, team_b: str) -> float:
+        """
+        Calculates Team A's historical win rate against Team B.
+
+        Returns 0.5 (neutral) if the teams have never played each other.
+        """
         key = tuple(sorted([team_a, team_b]))
         w, p = self.h2h_stats.get(key, (0, 0))
         if p == 0:
             return 0.5
         wr = w / p
-        return wr if key[0] == team_a else 1 - wr
+        return wr if key[0] == team_a else 1.0 - wr
 
-    def predict(self, team1, team2, venue=None, toss_winner=None, toss_decision="bat"):
+    def predict(self, team1: str, team2: str, venue: str = None, toss_winner: str = None, toss_decision: str = "bat") -> dict:
         """
-        Returns dict with win probabilities for team1 and team2.
-        venue: venue name string (optional -- uses neutral 0.5 if unknown/omitted)
-        toss_winner: 'team1' or 'team2' (optional)
-        toss_decision: 'bat' or 'field'
+        Predicts win probabilities for a hypothetical match between team1 and team2.
+
+        Parameters:
+            team1 (str): First team name (e.g., 'Mumbai Indians').
+            team2 (str): Second team name (e.g., 'Chennai Super Kings').
+            venue (str, optional): Venue name string. If None, defaults to neutral 0.5.
+            toss_winner (str, optional): 'team1' or 'team2'.
+            toss_decision (str, optional): 'bat' or 'field' (default 'bat').
+
+        Returns:
+            dict: Structured prediction dictionary containing:
+                - team1, team2 names
+                - team1_win_probability (%), team2_win_probability (%)
+                - current Elo ratings for both teams
+                - historical head-to-head win rate
         """
         elo1 = self.current_elo.get(team1, 1500)
         elo2 = self.current_elo.get(team2, 1500)
@@ -112,6 +146,7 @@ class MatchSimulator:
         toss_won_by_team1 = 1 if toss_winner == "team1" else 0
         toss_decision_bat = 1 if toss_decision == "bat" else 0
 
+        # Construct single-row DataFrame matching training feature columns
         feats = pd.DataFrame([{
             "elo_diff": elo1 - elo2,
             "form_diff": form1 - form2,
@@ -124,12 +159,13 @@ class MatchSimulator:
             "toss_decision_bat": toss_decision_bat,
         }])[FEATURE_COLS]
 
+        # Get predicted win probability for team1
         proba_team1 = self.model.predict_proba(feats)[0, 1]
 
         return {
             "team1": team1, "team2": team2,
             "team1_win_probability": round(float(proba_team1) * 100, 1),
-            "team2_win_probability": round(float(1 - proba_team1) * 100, 1),
+            "team2_win_probability": round(float(1.0 - proba_team1) * 100, 1),
             "team1_current_elo": round(elo1, 1),
             "team2_current_elo": round(elo2, 1),
             "head_to_head_team1_winrate": round(h2h_wr1 * 100, 1),
