@@ -793,20 +793,41 @@ if(DATA.all_players && DATA.all_players.length > 0){
   DATA.all_players.forEach(p => {
     if(p.PlayerName){
       playersMap.set(p.PlayerName.toLowerCase(), p);
-      if(p.player_full_name){
+      const opt1 = document.createElement('option');
+      opt1.value = p.PlayerName;
+      datalist.appendChild(opt1);
+
+      if(p.player_full_name && p.player_full_name.toLowerCase() !== p.PlayerName.toLowerCase()){
         playersMap.set(p.player_full_name.toLowerCase(), p);
+        const opt2 = document.createElement('option');
+        opt2.value = p.player_full_name;
+        datalist.appendChild(opt2);
       }
-      const opt = document.createElement('option');
-      opt.value = p.PlayerName;
-      if(p.player_full_name && p.player_full_name !== p.PlayerName){
-        opt.label = p.player_full_name;
-      }
-      datalist.appendChild(opt);
     }
   });
 
   const masterSearchInput = document.getElementById('masterPlayerSearch');
   const profileCard = document.getElementById('playerProfileContainer');
+
+  function findPlayer(query){
+    if(!query) return null;
+    const q = query.trim().toLowerCase();
+    if(!q) return null;
+
+    if(playersMap.has(q)) return playersMap.get(q);
+
+    let match = DATA.all_players.find(p => 
+      (p.PlayerName && p.PlayerName.toLowerCase().startsWith(q)) ||
+      (p.player_full_name && p.player_full_name.toLowerCase().startsWith(q))
+    );
+    if(match) return match;
+
+    match = DATA.all_players.find(p => 
+      (p.PlayerName && p.PlayerName.toLowerCase().includes(q)) ||
+      (p.player_full_name && p.player_full_name.toLowerCase().includes(q))
+    );
+    return match || null;
+  }
 
   function updatePlayerProfile(player){
     if(!player){
@@ -853,16 +874,17 @@ if(DATA.all_players && DATA.all_players.length > 0){
 
   if(masterSearchInput){
     masterSearchInput.addEventListener('input', (e) => {
-      const val = e.target.value.trim().toLowerCase();
-      const match = playersMap.get(val);
+      const match = findPlayer(e.target.value);
       if(match){
         updatePlayerProfile(match);
+      } else if(e.target.value.trim() === '') {
+        profileCard.style.display = 'none';
       }
     });
   }
 
-  // Load default featured player (MS Dhoni or Virat Kohli or first player)
-  const defaultPlayer = playersMap.get('ms dhoni') || playersMap.get('v kohli') || DATA.all_players[0];
+  // Load default featured player (MS Dhoni or JJ Bumrah or V Kohli or first player)
+  const defaultPlayer = playersMap.get('jj bumrah') || playersMap.get('ms dhoni') || playersMap.get('v kohli') || DATA.all_players[0];
   if(defaultPlayer && masterSearchInput){
     masterSearchInput.value = defaultPlayer.PlayerName;
     updatePlayerProfile(defaultPlayer);
