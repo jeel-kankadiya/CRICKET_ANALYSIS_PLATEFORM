@@ -1,4 +1,4 @@
-﻿"""
+"""
 generate_dashboard_data.py
 ---------------------------
 PURPOSE:
@@ -171,6 +171,25 @@ def leaderboards(ratings: pd.DataFrame) -> dict:
     }
 
 
+def all_players_data(ratings: pd.DataFrame) -> list:
+    """
+    Returns clean, serialized dictionary of ALL 792 players with full career stats,
+    handedness, style info, and calculated impact scores.
+    """
+    cols = [
+        "PlayerName", "player_full_name", "Teams", "Span", "Matches",
+        "Innings", "NotOuts", "Runs", "HighestScore", "BattingAverage",
+        "BallsFaced", "StrikeRate", "Hundreds", "Fifties", "Ducks",
+        "Fours", "Sixes", "BowlInnings", "Overs", "Maidens",
+        "RunsConceded", "Wickets", "BestBowlingInnings", "BowlingAverage",
+        "Economy", "BowlingStrikeRate", "FourWickets", "FiveWickets",
+        "bat_style", "bowl_style", "field_pos",
+        "batting_impact_score", "bowling_impact_score", "allrounder_index"
+    ]
+    sub = ratings[cols].replace({np.nan: None})
+    return sub.to_dict(orient="records")
+
+
 def main():
     """
     Main pipeline entrypoint to build and dump `outputs/dashboard_data.json`.
@@ -203,6 +222,7 @@ def main():
         "toss_impact": toss_impact(df),
         "win_probability_matrix": win_probability_matrix(sim, current_teams),
         "leaderboards": leaderboards(ratings),
+        "all_players": all_players_data(ratings),
         "model_metrics": model_metrics,
         "cv_results": cv_results,
         "feature_importance": feat_imp,

@@ -293,6 +293,55 @@
       <div class="section-tag">Player Performance</div>
       <h2>Career Leaderboards</h2>
       <p class="section-desc">Impact scores blend average, strike rate/economy, and career volume (percentile-ranked, qualified players only) into a single 0–100 score. The All-Rounder Index uses the <i>minimum</i> of batting and bowling impact — so it only rewards genuine dual contributors.</p>
+    <!-- All Players Master Explorer -->
+    <div class="card" style="margin-bottom:32px;">
+      <div class="section-tag" style="margin-bottom:12px;">🔍 IPL Player Career Explorer</div>
+      <h3 style="margin:0 0 8px; font-family:'Anton',sans-serif; text-transform:uppercase; font-size:20px;">Track Any IPL Player's Career Statistics</h3>
+      <p style="color:var(--slate); font-size:14px; margin-bottom:18px;">Search any of the 792 players who played in the IPL to view their full batting, bowling, handedness, team history, and impact scores.</p>
+      
+      <div style="position:relative; margin-bottom:20px;">
+        <input type="text" id="masterPlayerSearch" list="allPlayersDatalist" placeholder="Type player name (e.g., MS Dhoni, V Kohli, AB de Villiers, JJ Bumrah)..." style="width:100%; background:var(--bg-panel-alt); color:var(--chalk); border:1px solid var(--line); padding:14px 16px; font-family:'Inter',sans-serif; font-size:15px; border-radius:6px; outline:none;" />
+        <datalist id="allPlayersDatalist"></datalist>
+      </div>
+
+      <!-- Player Profile Card (populated dynamically) -->
+      <div id="playerProfileContainer" style="display:none; background:var(--bg-panel-alt); border:1px solid var(--line); border-radius:6px; padding:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:20px; border-bottom:1px solid var(--line); padding-bottom:16px;">
+          <div>
+            <h3 id="pProfName" style="margin:0 0 6px; font-family:'Anton',sans-serif; font-size:26px; color:var(--chalk);">—</h3>
+            <div id="pProfFullName" style="font-size:13px; color:var(--slate); font-style:italic; margin-bottom:6px;">—</div>
+            <div id="pProfTeams" style="font-size:13px; color:var(--grass); font-weight:500;">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div id="pProfSpan" style="font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--stump-gold); margin-bottom:6px;">Span: —</div>
+            <div id="pProfStyles" style="font-size:12px; color:var(--slate);">—</div>
+          </div>
+        </div>
+
+        <!-- 3 Key Impact Score Badges -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:24px;">
+          <div class="stat-card"><div class="num" id="pProfBatImpact" style="color:var(--grass);">—</div><div class="lbl">Batting Impact Score</div></div>
+          <div class="stat-card"><div class="num" id="pProfBowlImpact" style="color:var(--ball-red);">—</div><div class="lbl">Bowling Impact Score</div></div>
+          <div class="stat-card"><div class="num" id="pProfAllrIndex" style="color:var(--stump-gold);">—</div><div class="lbl">All-Rounder Index</div></div>
+          <div class="stat-card"><div class="num" id="pProfMatches">—</div><div class="lbl">Total Matches</div></div>
+        </div>
+
+        <!-- Batting & Bowling Stats Grid -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+          <div>
+            <div class="section-tag" style="margin-bottom:10px;">Batting Career Statistics</div>
+            <table style="width:100%;">
+              <tbody id="pProfBatTable"></tbody>
+            </table>
+          </div>
+          <div>
+            <div class="section-tag" style="margin-bottom:10px;">Bowling Career Statistics</div>
+            <table style="width:100%;">
+              <tbody id="pProfBowlTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
       <div class="tabs" style="margin:0;">
@@ -733,6 +782,92 @@ if(sInput){
 }
 
 renderLeaderboard('bat');
+
+// ────────────────────────────────────────────────────────
+// MASTER IPL PLAYER EXPLORER (792 PLAYERS)
+// ────────────────────────────────────────────────────────
+if(DATA.all_players && DATA.all_players.length > 0){
+  const playersMap = new Map();
+  const datalist = document.getElementById('allPlayersDatalist');
+  
+  DATA.all_players.forEach(p => {
+    if(p.PlayerName){
+      playersMap.set(p.PlayerName.toLowerCase(), p);
+      if(p.player_full_name){
+        playersMap.set(p.player_full_name.toLowerCase(), p);
+      }
+      const opt = document.createElement('option');
+      opt.value = p.PlayerName;
+      if(p.player_full_name && p.player_full_name !== p.PlayerName){
+        opt.label = p.player_full_name;
+      }
+      datalist.appendChild(opt);
+    }
+  });
+
+  const masterSearchInput = document.getElementById('masterPlayerSearch');
+  const profileCard = document.getElementById('playerProfileContainer');
+
+  function updatePlayerProfile(player){
+    if(!player){
+      profileCard.style.display = 'none';
+      return;
+    }
+
+    profileCard.style.display = 'block';
+    document.getElementById('pProfName').textContent = player.PlayerName || '—';
+    document.getElementById('pProfFullName').textContent = player.player_full_name ? `Full Name: ${player.player_full_name}` : '';
+    document.getElementById('pProfTeams').textContent = `Franchises: ${player.Teams || '—'}`;
+    document.getElementById('pProfSpan').textContent = `IPL Career Span: ${player.Span || '—'}`;
+    document.getElementById('pProfStyles').textContent = `Batting: ${player.bat_style || '—'} | Bowling: ${player.bowl_style || '—'}`;
+
+    document.getElementById('pProfBatImpact').textContent = player.batting_impact_score ? fmtN(player.batting_impact_score, 1) : '—';
+    document.getElementById('pProfBowlImpact').textContent = player.bowling_impact_score ? fmtN(player.bowling_impact_score, 1) : '—';
+    document.getElementById('pProfAllrIndex').textContent = player.allrounder_index ? fmtN(player.allrounder_index, 1) : '—';
+    document.getElementById('pProfMatches').textContent = player.Matches || 0;
+
+    // Render Batting Table
+    const batTbody = document.getElementById('pProfBatTable');
+    batTbody.innerHTML = `
+      <tr><td class="lbl">Innings / Not Outs</td><td class="val">${player.Innings || 0} / ${player.NotOuts || 0}</td></tr>
+      <tr><td class="lbl">Total Runs</td><td class="val" style="color:var(--grass);font-weight:700;">${player.Runs || 0}</td></tr>
+      <tr><td class="lbl">Highest Score</td><td class="val">${player.HighestScore || '—'}</td></tr>
+      <tr><td class="lbl">Batting Average</td><td class="val">${player.BattingAverage ? fmtN(player.BattingAverage, 2) : '—'}</td></tr>
+      <tr><td class="lbl">Strike Rate</td><td class="val">${player.StrikeRate ? fmtN(player.StrikeRate, 2) : '—'}</td></tr>
+      <tr><td class="lbl">Hundreds / Fifties</td><td class="val">${player.Hundreds || 0} / ${player.Fifties || 0}</td></tr>
+      <tr><td class="lbl">Boundaries (4s / 6s)</td><td class="val">${player.Fours || 0} / ${player.Sixes || 0}</td></tr>
+    `;
+
+    // Render Bowling Table
+    const bowlTbody = document.getElementById('pProfBowlTable');
+    bowlTbody.innerHTML = `
+      <tr><td class="lbl">Bowling Innings / Overs</td><td class="val">${player.BowlInnings || 0} / ${player.Overs ? fmtN(player.Overs, 1) : 0}</td></tr>
+      <tr><td class="lbl">Wickets Taken</td><td class="val" style="color:var(--stump-gold);font-weight:700;">${player.Wickets || 0}</td></tr>
+      <tr><td class="lbl">Best Bowling</td><td class="val">${player.BestBowlingInnings || '—'}</td></tr>
+      <tr><td class="lbl">Bowling Average</td><td class="val">${player.BowlingAverage ? fmtN(player.BowlingAverage, 2) : '—'}</td></tr>
+      <tr><td class="lbl">Economy Rate</td><td class="val">${player.Economy ? fmtN(player.Economy, 2) : '—'}</td></tr>
+      <tr><td class="lbl">Strike Rate</td><td class="val">${player.BowlingStrikeRate ? fmtN(player.BowlingStrikeRate, 2) : '—'}</td></tr>
+      <tr><td class="lbl">4W / 5W Hauls</td><td class="val">${player.FourWickets || 0} / ${player.FiveWickets || 0}</td></tr>
+    `;
+  }
+
+  if(masterSearchInput){
+    masterSearchInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim().toLowerCase();
+      const match = playersMap.get(val);
+      if(match){
+        updatePlayerProfile(match);
+      }
+    });
+  }
+
+  // Load default featured player (MS Dhoni or Virat Kohli or first player)
+  const defaultPlayer = playersMap.get('ms dhoni') || playersMap.get('v kohli') || DATA.all_players[0];
+  if(defaultPlayer && masterSearchInput){
+    masterSearchInput.value = defaultPlayer.PlayerName;
+    updatePlayerProfile(defaultPlayer);
+  }
+}
 
 // ---------- TOSS / VENUE ----------
 document.getElementById('tossOverall').textContent = fmt(DATA.toss_impact.overall_toss_winner_win_pct,1)+'%';
