@@ -1,0 +1,25 @@
+{
+  "overall": {
+    "accuracy": 0.763261524206625,
+    "roc_auc": 0.8617504246779213,
+    "log_loss": 0.542747912642657,
+    "brier_score": 0.16750850717968835
+  },
+  "by_phase": {
+    "overs_1_6_powerplay": {
+      "n_snapshots": 1428,
+      "accuracy": 0.688375350140056,
+      "roc_auc": 0.7957719649660264
+    },
+    "overs_7_15_middle": {
+      "n_snapshots": 2079,
+      "accuracy": 0.7705627705627706,
+      "roc_auc": 0.8547508372069776
+    },
+    "overs_16_20_death": {
+      "n_snapshots": 810,
+      "accuracy": 0.8765432098765432,
+      "roc_auc": 0.9577973658586584
+    }
+  }
+}
