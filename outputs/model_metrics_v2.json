@@ -1,0 +1,26 @@
+{
+  "logistic_regression": {
+    "accuracy": 0.5,
+    "roc_auc": 0.48752209261223045,
+    "log_loss": 0.709757801691601,
+    "brier_score": 0.2579515375919145
+  },
+  "random_forest": {
+    "accuracy": 0.5084033613445378,
+    "roc_auc": 0.5011664899257688,
+    "log_loss": 0.6951483012408325,
+    "brier_score": 0.2510040120438088
+  },
+  "gradient_boosting": {
+    "accuracy": 0.5252100840336135,
+    "roc_auc": 0.519123365146695,
+    "log_loss": 0.7448840195479374,
+    "brier_score": 0.27098513088078396
+  },
+  "hist_gradient_boosting": {
+    "accuracy": 0.4957983193277311,
+    "roc_auc": 0.5062566277836691,
+    "log_loss": 0.7512733479166719,
+    "brier_score": 0.2749841016144799
+  }
+}

@@ -1,4 +1,4 @@
-﻿"""
+"""
 dataset_analytics.py
 ---------------------
 PURPOSE:
@@ -75,67 +75,9 @@ def _clean_records(df: pd.DataFrame, cols: list) -> list:
 
 def auction_analytics() -> dict:
     """
-    Analyzes historical IPL player auction data.
-
-    Calculates:
-      - top_buys_per_season  : Top 5 most expensive sold players for each season.
-      - most_expensive_ever  : Top 20 all-time highest auction bids in IPL history.
-      - avg_price_by_role    : Mean, median, max prices broken down by player role.
-      - season_spend_trend   : Total and average auction expenditure per season.
-
-    Returns:
-        dict: Four analytical components formatted as clean dictionaries.
+    Disabled auction market analytics.
     """
-    df = load_auction_data()
-    sold = df[df["sold"] == "Yes"].copy()
-    sold["sold_price_lakhs"] = pd.to_numeric(sold["sold_price_lakhs"], errors="coerce")
-
-    # 1. Top 5 sold players per season
-    top_season = (
-        sold.sort_values("sold_price_lakhs", ascending=False)
-            .groupby("season")
-            .head(5)
-            .reset_index(drop=True)
-    )
-    top_buys_per_season = _clean_records(
-        top_season,
-        ["season", "player_name", "role", "team_name", "base_price_lakhs", "sold_price_lakhs"]
-    )
-
-    # 2. Top 20 all-time highest buys
-    top20 = sold.sort_values("sold_price_lakhs", ascending=False).head(20)
-    most_expensive_ever = _clean_records(
-        top20,
-        ["season", "player_name", "role", "team_name", "sold_price_lakhs"]
-    )
-
-    # 3. Aggregated price by player role
-    role_avg = (
-        sold.groupby("role")["sold_price_lakhs"]
-            .agg(["mean", "median", "max", "count"])
-            .reset_index()
-    )
-    role_avg.columns = ["role", "avg_price", "median_price", "max_price", "total_sold"]
-    role_avg["avg_price"]    = role_avg["avg_price"].round(1)
-    role_avg["median_price"] = role_avg["median_price"].round(1)
-    avg_price_by_role = _clean_records(role_avg, role_avg.columns.tolist())
-
-    # 4. Total and average spend per season
-    spend = (
-        sold.groupby("season")["sold_price_lakhs"]
-            .agg(total_spend="sum", avg_spend="mean", lots_sold="count")
-            .reset_index()
-    )
-    spend["total_spend"] = spend["total_spend"].round(0)
-    spend["avg_spend"]   = spend["avg_spend"].round(1)
-    season_spend_trend = _clean_records(spend, spend.columns.tolist())
-
-    return {
-        "top_buys_per_season":  top_buys_per_season,
-        "most_expensive_ever":  most_expensive_ever,
-        "avg_price_by_role":    avg_price_by_role,
-        "season_spend_trend":   season_spend_trend,
-    }
+    return {}
 
 
 # ─────────────────────────────────────────────────────────
@@ -308,9 +250,8 @@ def player_season_trends() -> dict:
         wkts_top, ["season", "player_name", "team_name", "matches", "wickets", "economy", "bowling_avg"]
     )
 
-    # Career trajectory for top 20 overall run scorers
-    career_totals = df.groupby("player_name")["runs"].sum().nlargest(20).index.tolist()
-    traj_df = df[df["player_name"].isin(career_totals)].sort_values(["player_name", "season"])
+    # Career trajectory for ALL players
+    traj_df = df.sort_values(["player_name", "season"])
     career_trajectories = _clean_records(
         traj_df, ["season", "player_name", "team_name", "matches", "runs",
                   "batting_avg", "strike_rate", "wickets", "economy"]

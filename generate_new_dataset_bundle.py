@@ -153,17 +153,12 @@ def player_season_trends():
             try: r[col] = round(float(r[col]), 2)
             except: r[col] = 0.0
 
-    # Top 20 career run-scorers
-    career_runs = defaultdict(int)
-    for r in rows:
-        career_runs[r['player_name']] += r['runs']
-    top20_players = set([p for p, _ in sorted(career_runs.items(), key=lambda x:-x[1])[:20]])
-
+    # Include all player season trajectories
     career_trajectories = [
         {'season': r['season'], 'player_name': r['player_name'], 'team_name': r['team_name'],
          'matches': r['matches'], 'runs': r['runs'], 'batting_avg': r['batting_avg'],
          'strike_rate': r['strike_rate'], 'wickets': r['wickets'], 'economy': r['economy']}
-        for r in rows if r['player_name'] in top20_players
+        for r in rows
     ]
 
     # Batting leaders top 10 per season

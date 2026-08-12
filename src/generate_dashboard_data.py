@@ -17,6 +17,7 @@ WHAT IT DOES:
 
 import os
 import json
+import re
 import itertools
 import numpy as np
 import pandas as pd
@@ -240,6 +241,26 @@ def main():
     print(f"  Teams: {len(current_teams)}, Matches: {len(df)}, "
           f"Win-prob matrix entries: {len(bundle['win_probability_matrix'])}")
 
+    # Sync all_players into dashboard/index.html inline DATA
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    dash_html_path = os.path.join(base_dir, "dashboard", "index.html")
+    if os.path.exists(dash_html_path):
+        try:
+            with open(dash_html_path, "r", encoding="utf-8") as f:
+                html = f.read()
+            m = re.search(r'(const DATA = )(\{.*?\})(\s*;)', html, re.DOTALL)
+            if m:
+                in_obj = json.loads(m.group(2))
+                in_obj.update(bundle)
+                new_json_str = json.dumps(in_obj, separators=(',', ':'), default=str)
+                new_html = html[:m.start()] + m.group(1) + new_json_str + m.group(3) + html[m.end():]
+                with open(dash_html_path, "w", encoding="utf-8") as f:
+                    f.write(new_html)
+                print(f"Synced full DATA bundle ({len(bundle['all_players'])} players, {len(bundle['player_season_trends']['career_trajectories'])} trajectories) into {dash_html_path}")
+        except Exception as e:
+            print(f"Warning: Failed to sync inline DATA to index.html: {e}")
+
 
 if __name__ == "__main__":
     main()
+
