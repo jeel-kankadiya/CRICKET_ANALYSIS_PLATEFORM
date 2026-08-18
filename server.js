@@ -14,6 +14,9 @@ const MIME = {
   '.json': 'application/json',
   '.png':  'image/png',
   '.ico':  'image/x-icon',
+  '.svg':  'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
 };
 
 // Cache dataset in memory for fast API responses
