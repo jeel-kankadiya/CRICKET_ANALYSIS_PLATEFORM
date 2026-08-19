@@ -600,11 +600,122 @@
           <div class="section-header">
             <div class="section-tag">Pitch & Stadium Intelligence</div>
             <h1 class="section-title">Venue Analytics</h1>
-            <p class="section-desc">Detailed profiles of major IPL venues with pitch characteristics and match history.</p>
+            <p class="section-desc">Comprehensive stadium intelligence — pitch profiles, scoring trends, toss analysis, dew factor impact, and ground characteristics across all IPL venues.</p>
           </div>
 
-          <div class="grid-3" id="venueCardsGrid"></div>
+          <!-- Search & Filter Bar -->
+          <div class="venue-search-bar">
+            <input type="text" class="venue-search-input" id="venueSearchInput" placeholder="🔍 Search stadiums by name or city...">
+            <div class="venue-filter-pills" id="venueFilterPills">
+              <button class="venue-filter-pill active" data-filter="all">All</button>
+              <button class="venue-filter-pill" data-filter="Balanced">⚖️ Balanced</button>
+              <button class="venue-filter-pill" data-filter="Batting Paradise">🏏 Batting</button>
+              <button class="venue-filter-pill" data-filter="Seam Friendly">🌿 Seam</button>
+              <button class="venue-filter-pill" data-filter="Spin Friendly">🌀 Spin</button>
+              <button class="venue-filter-pill" data-filter="Slow & Low">🐢 Slow & Low</button>
+            </div>
+          </div>
+
+          <!-- Venue Cards Grid -->
+          <div class="venue-cards-grid" id="venueCardsGrid"></div>
+
+          <!-- Venue Detail Panel (shown when clicking a venue card) -->
+          <div class="venue-detail-panel" id="venueDetailPanel">
+            <!-- Header -->
+            <div class="venue-detail-header">
+              <div class="venue-detail-title-block">
+                <div id="venueDetailName" class="venue-detail-name"></div>
+                <div id="venueDetailCity" class="venue-detail-city"></div>
+              </div>
+              <button class="venue-detail-close" id="venueDetailClose">✕</button>
+            </div>
+
+            <!-- Metrics Strip -->
+            <div class="venue-detail-metrics" id="venueDetailMetrics"></div>
+
+            <!-- Batting vs Chasing Win Split + Dew Factor -->
+            <div class="venue-analysis-grid">
+              <div class="venue-win-split-container">
+                <div class="venue-win-split-title">Batting First vs Chasing Win Rate</div>
+                <div class="venue-win-split-bar">
+                  <div class="venue-win-split-bat" id="venueWinSplitBat" style="width:50%"></div>
+                  <div class="venue-win-split-chase" id="venueWinSplitChase" style="width:50%"></div>
+                </div>
+                <div class="venue-win-split-labels">
+                  <span class="bat-label" id="venueWinBatLabel">🏏 Bat First: 50%</span>
+                  <span class="chase-label" id="venueWinChaseLabel">🎯 Chase: 50%</span>
+                </div>
+              </div>
+              <div class="venue-analysis-panel">
+                <div class="venue-analysis-title">💧 Dew Factor & Boundary Size</div>
+                <div style="margin-bottom:16px;">
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Dew Factor (higher = more dew impact on chasing)</div>
+                  <div class="dew-meter-container">
+                    <div class="dew-meter-bar">
+                      <div class="dew-meter-fill" id="venueDetailDewFill" style="width:50%"></div>
+                    </div>
+                    <span class="dew-meter-value" id="venueDetailDewValue">0.50</span>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Boundary Size (meters)</div>
+                  <div class="dew-meter-container">
+                    <div class="dew-meter-bar">
+                      <div class="dew-meter-fill" id="venueDetailBoundaryFill" style="width:50%;background:linear-gradient(90deg, var(--accent-gold), #FFD54F)"></div>
+                    </div>
+                    <span class="dew-meter-value" id="venueDetailBoundaryValue" style="color:var(--accent-gold)">65m</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pitch Type Analysis -->
+          <div class="venue-sub-header">
+            <span class="venue-sub-header-icon">📊</span>
+            <span class="venue-sub-header-title">Pitch Type Analysis</span>
+            <span class="venue-sub-header-desc">Aggregate performance breakdown by surface type</span>
+          </div>
+          <div class="venue-analysis-grid">
+            <div class="venue-analysis-panel">
+              <div class="venue-analysis-title">🏏 Avg First Innings Score by Pitch Type</div>
+              <div id="pitchTypeScoreRows"></div>
+            </div>
+            <div class="venue-analysis-panel">
+              <div class="venue-analysis-title">📈 Bat First Win % by Pitch Type</div>
+              <div id="pitchTypeWinRows"></div>
+            </div>
+          </div>
+
+          <!-- Top Venues Leaderboards -->
+          <div class="venue-sub-header">
+            <span class="venue-sub-header-icon">🏆</span>
+            <span class="venue-sub-header-title">Venue Leaderboards</span>
+            <span class="venue-sub-header-desc">Top performing grounds across key metrics</span>
+          </div>
+          <div class="venue-analysis-grid">
+            <div class="venue-analysis-panel">
+              <div class="venue-analysis-title">🔥 Highest Scoring Grounds</div>
+              <div id="topBattingVenuesList"></div>
+            </div>
+            <div class="venue-analysis-panel">
+              <div class="venue-analysis-title">🎯 Best Chasing Grounds</div>
+              <div id="topChasingVenuesList"></div>
+            </div>
+          </div>
+
+          <!-- Pitch Type Chart (Chart.js) -->
+          <div class="venue-sub-header">
+            <span class="venue-sub-header-icon">📉</span>
+            <span class="venue-sub-header-title">Pitch Type Comparison</span>
+          </div>
+          <div class="card-panel">
+            <div class="chart-box tall">
+              <canvas id="pitchTypeChartCanvas"></canvas>
+            </div>
+          </div>
         </section>
+
 
 
         <!-- ==================== SECTION 6: AUCTION ROI ==================== -->

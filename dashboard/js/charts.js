@@ -651,3 +651,116 @@ window.renderModelComparisonChart = function(canvasId, cvResults) {
     }
   });
 };
+
+/**
+ * Render Pitch Type Comparison Chart (Grouped Bar)
+ * Shows avg first innings score and bat-first win % by pitch type
+ */
+window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
+  window.destroyChart(canvasId);
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !pitchTypeSummary || !pitchTypeSummary.length) return;
+
+  const ctx = canvas.getContext('2d');
+
+  const labels = pitchTypeSummary.map(p => p.pitch_type);
+  const avgScores = pitchTypeSummary.map(p => p.avg_first_innings_score || 0);
+  const batWinPcts = pitchTypeSummary.map(p => p.avg_bat_first_win_pct || 0);
+  const dewFactors = pitchTypeSummary.map(p => ((p.avg_dew_factor || 0) * 100));
+
+  const pitchColors = {
+    'Balanced': '#00E5FF',
+    'Batting Paradise': '#FFB800',
+    'Seam Friendly': '#00FF9D',
+    'Spin Friendly': '#A855F7',
+    'Slow & Low': '#FF3B5C'
+  };
+
+  const bgColors = labels.map(l => {
+    const c = pitchColors[l] || '#00E5FF';
+    return c + '99';
+  });
+  const borderColors = labels.map(l => pitchColors[l] || '#00E5FF');
+
+  window.chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Avg 1st Innings Score',
+          data: avgScores,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 2,
+          borderRadius: 6,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Bat First Win %',
+          data: batWinPcts,
+          backgroundColor: 'rgba(255, 184, 0, 0.3)',
+          borderColor: '#FFB800',
+          borderWidth: 2,
+          borderRadius: 6,
+          yAxisID: 'y1'
+        },
+        {
+          label: 'Dew Factor %',
+          data: dewFactors,
+          backgroundColor: 'rgba(0, 229, 255, 0.25)',
+          borderColor: '#00E5FF',
+          borderWidth: 2,
+          borderRadius: 6,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#94A3B8',
+            font: { size: 12, weight: '600' },
+            usePointStyle: true,
+            padding: 16
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              if (ctx.dataset.label === 'Avg 1st Innings Score') return ` ${ctx.dataset.label}: ${ctx.raw}`;
+              return ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#F1F5F9', font: { weight: '600', size: 12 } }
+        },
+        y: {
+          position: 'left',
+          min: 140,
+          max: 200,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#00FF9D', font: { family: "'JetBrains Mono', monospace" } },
+          title: { display: true, text: 'Avg Score', color: '#00FF9D', font: { weight: '700' } }
+        },
+        y1: {
+          position: 'right',
+          min: 0,
+          max: 100,
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#FFB800', font: { family: "'JetBrains Mono', monospace" } },
+          title: { display: true, text: 'Win % / Dew %', color: '#FFB800', font: { weight: '700' } }
+        }
+      }
+    }
+  });
+};

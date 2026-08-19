@@ -602,30 +602,321 @@ window.APP = {
 
   renderVenueSection: function() {
     const d = this.data;
-    if (!d || !d.venue_stats) return;
+    if (!d) return;
 
+    // Use venue_intelligence data (richer) with fallback to venue_stats
+    const vi = d.venue_intelligence || {};
+    const venueProfiles = vi.venue_profiles || [];
+    const pitchTypeSummary = vi.pitch_type_summary || [];
+    const topBattingVenues = vi.top_batting_venues || [];
+    const topChasingVenues = vi.top_chasing_venues || [];
+
+    // Store for filtering
+    this.venueProfiles = venueProfiles;
+    this.venueActiveFilter = 'all';
+    this.venueSearchQuery = '';
+    this.selectedVenue = null;
+
+    // Render venue cards
+    this.renderVenueCards();
+
+    // Setup search & filter
+    this.setupVenueFilters();
+
+    // Render pitch type analysis
+    this.renderPitchTypeAnalysis(pitchTypeSummary);
+
+    // Render top venues leaderboards
+    this.renderTopVenuesLeaderboards(topBattingVenues, topChasingVenues);
+
+    // Render pitch type chart
+    if (window.renderPitchTypeComparisonChart && pitchTypeSummary.length) {
+      window.renderPitchTypeComparisonChart('pitchTypeChartCanvas', pitchTypeSummary);
+    }
+
+    // Close button for detail panel
+    const closeBtn = document.getElementById('venueDetailClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        this.closeVenueDetail();
+      });
+    }
+  },
+
+  getPitchBadgeClass: function(pitchType) {
+    if (!pitchType) return 'pitch-badge--balanced';
+    const pt = pitchType.toLowerCase();
+    if (pt.includes('batting') || pt.includes('paradise')) return 'pitch-badge--batting';
+    if (pt.includes('seam')) return 'pitch-badge--seam';
+    if (pt.includes('spin')) return 'pitch-badge--spin';
+    if (pt.includes('slow') || pt.includes('low')) return 'pitch-badge--slow';
+    return 'pitch-badge--balanced';
+  },
+
+  renderVenueCards: function() {
     const grid = document.getElementById('venueCardsGrid');
     if (!grid) return;
 
     grid.innerHTML = '';
+    const profiles = this.getFilteredVenues();
 
-    d.venue_stats.forEach(v => {
+    if (!profiles.length) {
+      grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-dim); font-size:14px;">No venues match your search criteria.</div>`;
+      return;
+    }
+
+    profiles.forEach(v => {
       const card = document.createElement('div');
-      card.className = 'card-panel glow-cyan';
+      card.className = 'venue-card' + (this.selectedVenue && this.selectedVenue.venue === v.venue ? ' selected' : '');
+
+      const batWinPct = v.bat_first_win_pct || 50;
+      const avgScore = v.avg_first_innings_score || 0;
+      const capacity = v.capacity || 0;
+      const dewFactor = v.dew_factor || 0;
+      const boundarySize = v.boundary_size_m || 0;
+      const matches = v.total_matches_hosted || 0;
+
       card.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="venue-card-header">
           <div>
-            <h4 style="font-family:var(--font-title); font-size:18px; font-weight:800;">${v.venue}</h4>
-            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">Official IPL Stadium Profile</div>
+            <div class="venue-card-title">${v.venue}</div>
+            <div class="venue-card-city">${v.city || 'India'}</div>
           </div>
-          <div style="background:rgba(0,229,255,0.1); border:1px solid var(--accent-cyan); color:var(--accent-cyan); padding:4px 10px; border-radius:var(--radius-full); font-family:var(--font-mono); font-size:12px; font-weight:700;">
-            ${v.matches} Matches
+          <div class="venue-card-matches">${matches} Matches</div>
+        </div>
+        <span class="pitch-badge ${this.getPitchBadgeClass(v.pitch_type)}">${v.pitch_type || 'Unknown'}</span>
+        <div class="venue-card-stats">
+          <div class="venue-card-stat">
+            <span class="venue-card-stat-label">Avg 1st Inn.</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-emerald)">${avgScore}</span>
+          </div>
+          <div class="venue-card-stat">
+            <span class="venue-card-stat-label">Bat 1st Win%</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-gold)">${batWinPct}%</span>
+          </div>
+          <div class="venue-card-stat">
+            <span class="venue-card-stat-label">Dew Factor</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-cyan)">${dewFactor}</span>
+          </div>
+          <div class="venue-card-stat">
+            <span class="venue-card-stat-label">Boundary</span>
+            <span class="venue-card-stat-value">${boundarySize}m</span>
           </div>
         </div>
       `;
+
+      card.addEventListener('click', () => {
+        this.openVenueDetail(v);
+        // Mark selected card
+        document.querySelectorAll('.venue-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+
       grid.appendChild(card);
     });
   },
+
+  getFilteredVenues: function() {
+    let profiles = this.venueProfiles || [];
+    const filter = this.venueActiveFilter || 'all';
+    const query = (this.venueSearchQuery || '').toLowerCase().trim();
+
+    if (filter !== 'all') {
+      profiles = profiles.filter(v => v.pitch_type === filter);
+    }
+
+    if (query) {
+      profiles = profiles.filter(v =>
+        (v.venue && v.venue.toLowerCase().includes(query)) ||
+        (v.city && v.city.toLowerCase().includes(query))
+      );
+    }
+
+    return profiles;
+  },
+
+  setupVenueFilters: function() {
+    // Search input
+    const searchInput = document.getElementById('venueSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.venueSearchQuery = e.target.value;
+        this.renderVenueCards();
+      });
+    }
+
+    // Filter pills
+    const pills = document.querySelectorAll('.venue-filter-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        this.venueActiveFilter = pill.getAttribute('data-filter');
+        this.renderVenueCards();
+      });
+    });
+  },
+
+  openVenueDetail: function(venue) {
+    this.selectedVenue = venue;
+    const panel = document.getElementById('venueDetailPanel');
+    if (!panel) return;
+
+    // Show panel
+    panel.classList.add('visible');
+
+    // Name & City
+    const nameEl = document.getElementById('venueDetailName');
+    const cityEl = document.getElementById('venueDetailCity');
+    if (nameEl) nameEl.innerText = venue.venue;
+    if (cityEl) cityEl.innerText = `${venue.city || 'India'} • Capacity: ${(venue.capacity || 0).toLocaleString()} • ${venue.pitch_type || 'Unknown'} Pitch`;
+
+    // Metrics strip
+    const metricsGrid = document.getElementById('venueDetailMetrics');
+    if (metricsGrid) {
+      const metrics = [
+        { icon: '🏟️', value: (venue.capacity || 0).toLocaleString(), label: 'Capacity' },
+        { icon: '🏏', value: venue.avg_first_innings_score || '—', label: 'Avg 1st Inn Score' },
+        { icon: '📊', value: `${venue.bat_first_win_pct || 0}%`, label: 'Bat First Win %' },
+        { icon: '💧', value: venue.dew_factor || 0, label: 'Dew Factor' },
+        { icon: '📏', value: `${venue.boundary_size_m || 0}m`, label: 'Boundary Size' },
+      ];
+      metricsGrid.innerHTML = metrics.map(m => `
+        <div class="venue-metric-card">
+          <div class="venue-metric-icon">${m.icon}</div>
+          <div class="venue-metric-value">${m.value}</div>
+          <div class="venue-metric-label">${m.label}</div>
+        </div>
+      `).join('');
+    }
+
+    // Win split bar
+    const batPct = venue.bat_first_win_pct || 50;
+    const chasePct = (100 - batPct).toFixed(1);
+    const batBar = document.getElementById('venueWinSplitBat');
+    const chaseBar = document.getElementById('venueWinSplitChase');
+    const batLabel = document.getElementById('venueWinBatLabel');
+    const chaseLabel = document.getElementById('venueWinChaseLabel');
+
+    if (batBar) batBar.style.width = `${batPct}%`;
+    if (chaseBar) chaseBar.style.width = `${chasePct}%`;
+    if (batLabel) batLabel.innerText = `🏏 Bat First: ${batPct}%`;
+    if (chaseLabel) chaseLabel.innerText = `🎯 Chase: ${chasePct}%`;
+
+    // Dew factor meter
+    const dewFill = document.getElementById('venueDetailDewFill');
+    const dewValue = document.getElementById('venueDetailDewValue');
+    const dewPct = ((venue.dew_factor || 0) * 100);
+    if (dewFill) dewFill.style.width = `${dewPct}%`;
+    if (dewValue) dewValue.innerText = (venue.dew_factor || 0).toFixed(2);
+
+    // Boundary size meter (scale: 55m-80m)
+    const bFill = document.getElementById('venueDetailBoundaryFill');
+    const bValue = document.getElementById('venueDetailBoundaryValue');
+    const boundary = venue.boundary_size_m || 65;
+    const bPct = Math.min(100, Math.max(0, ((boundary - 55) / 25) * 100));
+    if (bFill) bFill.style.width = `${bPct}%`;
+    if (bValue) bValue.innerText = `${boundary}m`;
+
+    // Scroll to panel
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+
+  closeVenueDetail: function() {
+    this.selectedVenue = null;
+    const panel = document.getElementById('venueDetailPanel');
+    if (panel) panel.classList.remove('visible');
+    document.querySelectorAll('.venue-card').forEach(c => c.classList.remove('selected'));
+  },
+
+  renderPitchTypeAnalysis: function(pitchTypeSummary) {
+    // Avg Score rows
+    const scoreContainer = document.getElementById('pitchTypeScoreRows');
+    if (scoreContainer && pitchTypeSummary.length) {
+      const maxScore = Math.max(...pitchTypeSummary.map(p => p.avg_first_innings_score || 0));
+      const pitchColors = {
+        'Balanced': '#00E5FF',
+        'Batting Paradise': '#FFB800',
+        'Seam Friendly': '#00FF9D',
+        'Spin Friendly': '#A855F7',
+        'Slow & Low': '#FF3B5C'
+      };
+
+      scoreContainer.innerHTML = pitchTypeSummary.map(p => {
+        const pct = maxScore > 0 ? ((p.avg_first_innings_score || 0) / maxScore * 100) : 0;
+        const color = pitchColors[p.pitch_type] || '#00E5FF';
+        return `
+          <div class="pitch-type-row">
+            <span class="pitch-type-name">${p.pitch_type}</span>
+            <div class="pitch-type-bar-container">
+              <div class="pitch-type-bar-fill" style="width:${pct}%; background:${color}"></div>
+            </div>
+            <span class="pitch-type-value" style="color:${color}">${p.avg_first_innings_score || 0}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Win % rows
+    const winContainer = document.getElementById('pitchTypeWinRows');
+    if (winContainer && pitchTypeSummary.length) {
+      const pitchColors = {
+        'Balanced': '#00E5FF',
+        'Batting Paradise': '#FFB800',
+        'Seam Friendly': '#00FF9D',
+        'Spin Friendly': '#A855F7',
+        'Slow & Low': '#FF3B5C'
+      };
+
+      winContainer.innerHTML = pitchTypeSummary.map(p => {
+        const pct = p.avg_bat_first_win_pct || 0;
+        const color = pitchColors[p.pitch_type] || '#00E5FF';
+        return `
+          <div class="pitch-type-row">
+            <span class="pitch-type-name">${p.pitch_type}</span>
+            <div class="pitch-type-bar-container">
+              <div class="pitch-type-bar-fill" style="width:${pct}%; background:${color}"></div>
+            </div>
+            <span class="pitch-type-value" style="color:${color}">${pct}%</span>
+          </div>
+        `;
+      }).join('');
+    }
+  },
+
+  renderTopVenuesLeaderboards: function(topBatting, topChasing) {
+    // Top Batting Venues
+    const batList = document.getElementById('topBattingVenuesList');
+    if (batList && topBatting.length) {
+      batList.innerHTML = topBatting.map((v, i) => {
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+        return `
+          <div class="venue-leaderboard-row">
+            <span class="venue-lb-rank ${rankClass}">${i + 1}</span>
+            <span class="venue-lb-name">${v.venue}</span>
+            <span class="venue-lb-value" style="color:var(--accent-emerald)">${v.avg_first_innings_score}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Top Chasing Venues
+    const chaseList = document.getElementById('topChasingVenuesList');
+    if (chaseList && topChasing.length) {
+      chaseList.innerHTML = topChasing.map((v, i) => {
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+        const chasePct = (100 - (v.bat_first_win_pct || 50)).toFixed(1);
+        return `
+          <div class="venue-leaderboard-row">
+            <span class="venue-lb-rank ${rankClass}">${i + 1}</span>
+            <span class="venue-lb-name">${v.venue}</span>
+            <span class="venue-lb-value" style="color:var(--accent-cyan)">${chasePct}%</span>
+          </div>
+        `;
+      }).join('');
+    }
+  },
+
 
   renderAuctionSection: function() {
     const d = this.data;
