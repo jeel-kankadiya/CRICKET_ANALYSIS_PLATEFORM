@@ -545,6 +545,59 @@ window.APP = {
         personalTbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:20px;">No individual season records found for ${player.PlayerName}.</td></tr>`;
       }
     }
+
+    // Render Personal Stadium-by-Stadium Performance Table
+    this.renderPlayerVenueTable(player.PlayerName);
+  },
+
+  renderPlayerVenueTable: function(playerName) {
+    const titleName = document.getElementById('scoutVenueTablePlayerName');
+    if (titleName) titleName.innerText = playerName;
+
+    const tbody = document.getElementById('scoutPersonalVenueTbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const d = this.data;
+    if (!d || !d.player_venue_stats) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:20px;">No stadium statistics available.</td></tr>`;
+      return;
+    }
+
+    let stats = d.player_venue_stats[playerName] || [];
+    if (!stats.length) {
+      const key = Object.keys(d.player_venue_stats).find(k => k.toLowerCase() === playerName.toLowerCase());
+      if (key) stats = d.player_venue_stats[key];
+    }
+
+    const searchInput = document.getElementById('scoutVenueSearchInput');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    if (query) {
+      stats = stats.filter(s => s.venue.toLowerCase().includes(query));
+    }
+
+    if (!stats.length) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted); padding:20px;">No matching venue stats for "${playerName}".</td></tr>`;
+      return;
+    }
+
+    stats.forEach(row => {
+      const tr = document.createElement('tr');
+      const hsHighlight = row.hs >= 100 ? 'color:var(--accent-amber); font-weight:800;' : row.hs >= 50 ? 'color:var(--accent-teal); font-weight:700;' : '';
+      tr.innerHTML = `
+        <td><strong style="color:var(--text-main); font-family:var(--font-title);">${row.venue}</strong></td>
+        <td>${row.innings || 0}</td>
+        <td style="color:var(--accent-teal); font-weight:800; font-family:var(--font-mono); font-size:14px;">${(row.runs || 0).toLocaleString()}</td>
+        <td><strong>${row.avg ? row.avg.toFixed(1) : '—'}</strong></td>
+        <td>${row.sr ? row.sr.toFixed(1) : '—'}</td>
+        <td><span style="${hsHighlight}">${row.hs || 0}</span></td>
+        <td><span style="color:var(--accent-amber); font-weight:700;">${row.hundreds || 0}</span> / <span style="font-weight:600;">${row.fifties || 0}</span></td>
+        <td><span>${row.fours || 0}</span> / <span style="color:var(--accent-rose); font-weight:700;">${row.sixes || 0}</span></td>
+        <td style="color:var(--accent-rose); font-weight:700;">${row.wickets > 0 ? row.wickets : '—'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
   },
 
   renderLeaderboardsTable: function() {
@@ -817,6 +870,71 @@ window.APP = {
     const bPct = Math.min(100, Math.max(0, ((boundary - 55) / 25) * 100));
     if (bFill) bFill.style.width = `${bPct}%`;
     if (bValue) bValue.innerText = `${boundary}m`;
+
+    // Render All-Time Top Scored Players at this Stadium
+    const topTbody = document.getElementById('venueDetailTopBattersTbody');
+    if (topTbody && this.data && this.data.player_venue_stats) {
+      topTbody.innerHTML = '';
+      const vName = venue.venue ? venue.venue.toLowerCase().trim() : '';
+      const vCity = venue.city ? venue.city.toLowerCase().trim() : '';
+
+      const allVenueStats = [];
+      Object.entries(this.data.player_venue_stats).forEach(([pName, vList]) => {
+        vList.forEach(vEntry => {
+          const vEntryName = vEntry.venue.toLowerCase();
+          if (vEntryName.includes(vName) || (vCity && vEntryName.includes(vCity))) {
+            allVenueStats.push({
+              playerName: pName,
+              ...vEntry
+            });
+          }
+        });
+      });
+
+      // Sort by runs descending
+      allVenueStats.sort((a, b) => b.runs - a.runs);
+
+      // Deduplicate by player name
+      const uniqueBatters = [];
+      const seenPlayers = new Set();
+      for (const s of allVenueStats) {
+        if (!seenPlayers.has(s.playerName)) {
+          seenPlayers.add(s.playerName);
+          uniqueBatters.push(s);
+        }
+      }
+
+      const topBatters = uniqueBatters.slice(0, 8);
+
+      if (topBatters.length) {
+        topBatters.forEach((row, idx) => {
+          const tr = document.createElement('tr');
+          tr.style.cursor = 'pointer';
+          const rankBadge = idx === 0 ? 'rank-1' : idx === 1 ? 'rank-2' : idx === 2 ? 'rank-3' : '';
+          tr.innerHTML = `
+            <td><span class="rank-badge ${rankBadge}">${idx + 1}</span></td>
+            <td><strong style="color:var(--text-main); font-family:var(--font-title);">${row.playerName}</strong></td>
+            <td>${row.innings || 0}</td>
+            <td style="color:var(--accent-teal); font-weight:800; font-family:var(--font-mono); font-size:14px;">${(row.runs || 0).toLocaleString()}</td>
+            <td><strong>${row.avg ? row.avg.toFixed(1) : '—'}</strong></td>
+            <td>${row.sr ? row.sr.toFixed(1) : '—'}</td>
+            <td><span style="color:var(--accent-amber); font-weight:700;">${row.hs || 0}</span></td>
+            <td><span style="color:var(--accent-amber); font-weight:700;">${row.hundreds || 0}</span> / <span>${row.fifties || 0}</span></td>
+          `;
+          tr.addEventListener('click', () => {
+            const pObj = (this.data.all_players || []).find(p => p.PlayerName === row.playerName);
+            if (pObj) {
+              this.selectPlayerProfile(pObj);
+              const scoutNav = document.querySelector('[data-target="player-section"]');
+              if (scoutNav) scoutNav.click();
+            }
+          });
+          topTbody.appendChild(tr);
+        });
+      } else {
+        topTbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:16px;">No batter records found for this stadium.</td></tr>`;
+      }
+    }
 
     // Scroll to panel
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1119,6 +1237,15 @@ window.APP = {
         this.renderLeaderboardsTable();
       });
     });
+
+    // Player venue breakdown search filter
+    const vSearch = document.getElementById('scoutVenueSearchInput');
+    if (vSearch) {
+      vSearch.addEventListener('input', () => {
+        const curPlayer = this.selectedPlayer ? this.selectedPlayer.PlayerName : 'V Kohli';
+        this.renderPlayerVenueTable(curPlayer);
+      });
+    }
   }
 };
 
