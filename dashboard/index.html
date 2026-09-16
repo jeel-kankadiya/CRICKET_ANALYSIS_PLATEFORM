@@ -46,10 +46,6 @@
           Elo Power Rankings
         </a>
 
-        <a class="nav-item" data-target="sim-section">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-          AI Win Simulator
-        </a>
 
         <a class="nav-item" data-target="player-section">
           <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -63,10 +59,6 @@
           Venue Intelligence
         </a>
 
-        <a class="nav-item" data-target="auction-section">
-          <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Auction ROI Analytics
-        </a>
 
         <a class="nav-item" data-target="model-section">
           <svg viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3zM6 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"/></svg>
@@ -173,16 +165,6 @@
             </div>
           </div>
 
-          <!-- Quick Predictor Spotlight -->
-          <div class="card-panel glow-cyan">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-              <div>
-                <h3 style="font-family:var(--font-title); font-size:20px; font-weight:800;">Featured Match Predictor</h3>
-                <p style="font-size:13px; color:var(--text-muted);">Real-time win probability estimation based on team strength and match situations.</p>
-              </div>
-              <button class="tab-btn active" onclick="document.querySelector('[data-target=\'sim-section\']').click()">Launch Full Simulator →</button>
-            </div>
-          </div>
         </section>
 
 
@@ -206,79 +188,6 @@
         </section>
 
 
-        <!-- ==================== SECTION 3: AI WIN SIMULATOR ==================== -->
-        <section id="sim-section" class="app-section" style="display:none;">
-          <div class="section-header">
-            <div class="section-tag">Match Simulation Engine</div>
-            <h1 class="section-title">Win Probability Predictor</h1>
-            <p class="section-desc">Simulate head-to-head franchise clashes under custom toss decisions, chasing targets, and venue conditions.</p>
-          </div>
-
-          <div class="simulator-container">
-            <!-- Team Selection Cards -->
-            <div class="sim-teams-selector">
-              <div class="team-box">
-                <div id="simBadgeA"></div>
-                <select class="team-select-dropdown" id="simTeamASelect"></select>
-                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloA" style="color:var(--accent-teal);">—</strong></span>
-              </div>
-
-              <div class="sim-vs-circle">VS</div>
-
-              <div class="team-box">
-                <div id="simBadgeB"></div>
-                <select class="team-select-dropdown" id="simTeamBSelect"></select>
-                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloB" style="color:var(--accent-rose);">—</strong></span>
-              </div>
-            </div>
-
-            <!-- Probability Gauge Readout -->
-            <div class="prob-display-panel">
-              <div class="prob-numbers-row">
-                <div class="prob-team-readout">
-                  <span class="prob-team-name">Team A Win Prob</span>
-                  <span class="prob-value teamA" id="simProbValA">50.0%</span>
-                </div>
-                <div class="prob-team-readout right">
-                  <span class="prob-team-name">Team B Win Prob</span>
-                  <span class="prob-value teamB" id="simProbValB">50.0%</span>
-                </div>
-              </div>
-
-              <div class="prob-bar-container">
-                <div class="prob-bar-fill-A" id="simBarFillA" style="width: 50%;"></div>
-                <div class="prob-bar-fill-B" id="simBarFillB" style="width: 50%;"></div>
-              </div>
-            </div>
-
-            <!-- Match Situation Controls -->
-            <div class="card-panel">
-              <h4 style="font-family:var(--font-title); font-size:16px; font-weight:700; margin-bottom:16px;">Match Context Parameters</h4>
-              <div class="sim-controls-grid">
-                <div class="control-group">
-                  <label class="control-label">Toss Winner</label>
-                  <select class="control-select" id="simTossWinnerSelect">
-                    <option value="Team A">Team A</option>
-                    <option value="Team B">Team B</option>
-                  </select>
-                </div>
-
-                <div class="control-group">
-                  <label class="control-label">Toss Decision</label>
-                  <select class="control-select" id="simTossDecisionSelect">
-                    <option value="field">Field First (Chasing)</option>
-                    <option value="bat">Bat First</option>
-                  </select>
-                </div>
-
-                <div class="control-group">
-                  <label class="control-label">Venue / Stadium</label>
-                  <select class="control-select" id="simVenueSelect"></select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
 
         <!-- ==================== SECTION 4: PLAYER SCOUTING HUB ==================== -->
@@ -721,17 +630,6 @@
 
 
 
-        <!-- ==================== SECTION 6: AUCTION ROI ==================== -->
-        <section id="auction-section" class="app-section" style="display:none;">
-          <div class="section-header">
-            <div class="section-tag">Financial Analytics</div>
-            <h1 class="section-title">Auction & Price-to-Impact ROI</h1>
-            <p class="section-desc">Historical auction spending trends, highest value franchise acquisitions, and player price performance metrics.</p>
-          </div>
-
-          <h3 style="font-family:var(--font-title); font-size:18px; font-weight:800; margin-bottom:16px;">Top Historical Auction Buyouts</h3>
-          <div class="grid-3" id="auctionTopBuysGrid"></div>
-        </section>
 
 
         <!-- ==================== SECTION 7: ML SCIENCE LAB ==================== -->

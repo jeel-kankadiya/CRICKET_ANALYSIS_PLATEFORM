@@ -212,7 +212,7 @@ window.APP = {
 
   updateSimulation: function() {
     const d = this.data;
-    if (!d) return;
+    if (!d || !document.getElementById('simTeamASelect')) return;
 
     const teamA = document.getElementById('simTeamASelect').value;
     const teamB = document.getElementById('simTeamBSelect').value;
