@@ -676,6 +676,9 @@ window.APP = {
     // Setup search & filter
     this.setupVenueFilters();
 
+    // Setup interactive Player vs Specific Stadium analyzer tool
+    this.initPlayerVenueAnalyzer();
+
     // Render pitch type analysis
     this.renderPitchTypeAnalysis(pitchTypeSummary);
 
@@ -945,6 +948,178 @@ window.APP = {
     const panel = document.getElementById('venueDetailPanel');
     if (panel) panel.classList.remove('visible');
     document.querySelectorAll('.venue-card').forEach(c => c.classList.remove('selected'));
+  },
+
+  initPlayerVenueAnalyzer: function() {
+    const playerSelect = document.getElementById('pvVenuePlayerSelect');
+    const stadiumSelect = document.getElementById('pvVenueStadiumSelect');
+    if (!playerSelect || !stadiumSelect || !this.data) return;
+
+    // Populate Players dropdown if empty
+    if (playerSelect.options.length === 0 && this.data.all_players) {
+      const players = [...this.data.all_players].sort((a, b) => (b.Runs || 0) - (a.Runs || 0));
+      players.forEach(p => {
+        playerSelect.add(new Option(`${p.PlayerName} (${(p.Teams || '').split(',')[0]})`, p.PlayerName, false, p.PlayerName === 'V Kohli'));
+      });
+    }
+
+    // Populate Stadiums dropdown if empty
+    if (stadiumSelect.options.length === 0 && this.data.player_venue_stats) {
+      const allStadiumsSet = new Set();
+      Object.values(this.data.player_venue_stats).forEach(vList => {
+        vList.forEach(v => allStadiumsSet.add(v.venue));
+      });
+      const sortedStadiums = Array.from(allStadiumsSet).sort();
+      sortedStadiums.forEach(s => {
+        stadiumSelect.add(new Option(s, s, false, s.includes('Eden Gardens')));
+      });
+    }
+
+    // Attach listeners once
+    if (!playerSelect.hasAttribute('data-pv-init')) {
+      playerSelect.setAttribute('data-pv-init', 'true');
+      playerSelect.addEventListener('change', () => this.renderPlayerVenueAnalysisOutput());
+      stadiumSelect.addEventListener('change', () => this.renderPlayerVenueAnalysisOutput());
+    }
+
+    // Render output
+    this.renderPlayerVenueAnalysisOutput();
+  },
+
+  renderPlayerVenueAnalysisOutput: function() {
+    const outputContainer = document.getElementById('pvVenueAnalysisOutput');
+    const playerSelect = document.getElementById('pvVenuePlayerSelect');
+    const stadiumSelect = document.getElementById('pvVenueStadiumSelect');
+    if (!outputContainer || !playerSelect || !stadiumSelect || !this.data) return;
+
+    const pName = playerSelect.value || 'V Kohli';
+    const sName = stadiumSelect.value || 'Eden Gardens (Kolkata)';
+
+    const pObj = (this.data.all_players || []).find(p => p.PlayerName === pName) || { PlayerName: pName };
+    const pVenueList = (this.data.player_venue_stats && this.data.player_venue_stats[pName]) || [];
+    
+    // Find record for selected stadium
+    const stat = pVenueList.find(v => v.venue === sName || v.venue.toLowerCase().includes(sName.toLowerCase())) || null;
+
+    if (!stat) {
+      outputContainer.innerHTML = `
+        <div style="padding:24px; text-align:center; background:var(--bg-card); border:1px dashed var(--border-color); border-radius:var(--radius-md);">
+          <span style="font-size:32px; display:block; margin-bottom:8px;">🏟️</span>
+          <h4 style="font-family:var(--font-title); font-size:16px; font-weight:700; color:var(--text-main); margin:0;">No Recorded Matches at ${sName} for ${pName}</h4>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Select another stadium or player to inspect head-to-head performance.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Calculations & Comparisons vs Career
+    const careerBatAvg = pObj.BattingAverage || 0;
+    const careerSR = pObj.StrikeRate || 0;
+    const avgDiff = stat.avg - careerBatAvg;
+    const avgDiffPct = careerBatAvg > 0 ? ((avgDiff / careerBatAvg) * 100).toFixed(1) : '0';
+    const avgBadgeClass = avgDiff >= 0 ? 'color:var(--accent-teal); background:rgba(13,148,136,0.1); border:1px solid rgba(13,148,136,0.25);' : 'color:var(--accent-rose); background:rgba(225,29,72,0.1); border:1px solid rgba(225,29,72,0.25);';
+    const avgSign = avgDiff >= 0 ? '+' : '';
+
+    const srDiff = stat.sr - careerSR;
+    const srSign = srDiff >= 0 ? '+' : '';
+
+    // Dominance Verdict Tag
+    let verdictTag = '⚖️ Steady Surface Performance';
+    if (stat.runs >= 400 || (stat.avg >= 45 && stat.innings >= 5)) {
+      verdictTag = '🔥 Prime Fortress & Hunting Ground';
+    } else if (avgDiff >= 5.0) {
+      verdictTag = '📈 High Efficiency Ground (+Above Career Avg)';
+    } else if (stat.wickets >= 10) {
+      verdictTag = '⚡ Bowling Stronghold';
+    }
+
+    outputContainer.innerHTML = `
+      <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:20px; box-shadow:var(--shadow-sm);">
+        
+        <!-- Header Strip -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--border-color);">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:50%; background:var(--accent-teal); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--font-title); font-weight:900; font-size:18px;">
+              ${pName.split(' ').map(n=>n[0]).join('')}
+            </div>
+            <div>
+              <h3 style="font-family:var(--font-title); font-size:20px; font-weight:800; color:var(--text-main); margin:0;">${pName} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">at</span> ${sName}</h3>
+              <span style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">${stat.innings} Batting Innings • ${stat.balls} Balls Faced • ${(pObj.Teams || '').split(',')[0]}</span>
+            </div>
+          </div>
+
+          <div style="padding:6px 14px; border-radius:20px; font-family:var(--font-mono); font-size:12px; font-weight:800; ${avgBadgeClass}">
+            ${verdictTag}
+          </div>
+        </div>
+
+        <!-- 4 Stat Widgets Grid -->
+        <div class="grid-4" style="margin-bottom:20px;">
+          <div class="stat-widget" style="padding:14px 16px;">
+            <div class="stat-info">
+              <span class="stat-label">Runs Scored</span>
+              <span class="stat-value" style="color:var(--accent-teal); font-size:24px;">${stat.runs.toLocaleString()}</span>
+              <span class="stat-sub">Highest Score: <strong style="color:var(--accent-amber);">${stat.hs}</strong></span>
+            </div>
+          </div>
+
+          <div class="stat-widget cyan" style="padding:14px 16px;">
+            <div class="stat-info">
+              <span class="stat-label">Batting Average</span>
+              <span class="stat-value" style="font-size:22px;">${stat.avg.toFixed(1)}</span>
+              <span class="stat-sub">Career Avg: <strong>${careerBatAvg.toFixed(1)}</strong> (${avgSign}${avgDiff.toFixed(1)})</span>
+            </div>
+          </div>
+
+          <div class="stat-widget gold" style="padding:14px 16px;">
+            <div class="stat-info">
+              <span class="stat-label">Strike Rate & Milestones</span>
+              <span class="stat-value" style="color:var(--accent-amber); font-size:22px;">${stat.sr.toFixed(1)}</span>
+              <span class="stat-sub">100s: <strong>${stat.hundreds}</strong> | 50s: <strong>${stat.fifties}</strong></span>
+            </div>
+          </div>
+
+          <div class="stat-widget crimson" style="padding:14px 16px;">
+            <div class="stat-info">
+              <span class="stat-label">Boundaries & Bowling</span>
+              <span class="stat-value" style="color:var(--accent-rose); font-size:22px;">${stat.fours} 4s / ${stat.sixes} 6s</span>
+              <span class="stat-sub">Wickets: <strong style="color:var(--accent-rose);">${stat.wickets > 0 ? stat.wickets : '—'}</strong> (${stat.economy > 0 ? stat.economy.toFixed(2) + ' Econ' : '—'})</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Side-by-Side Comparison Row -->
+        <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px 18px;">
+          <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:10px;">
+            📊 Head-to-Head Delta: ${pName} at ${sName} vs Overall Career Average
+          </div>
+          <div style="display:flex; justify-content:space-around; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div style="text-align:center;">
+              <span style="font-size:11px; color:var(--text-muted); display:block;">Batting Average Delta</span>
+              <strong style="font-size:16px; font-family:var(--font-mono); color:${avgDiff >= 0 ? 'var(--accent-teal)' : 'var(--accent-rose)'};">${stat.avg.toFixed(1)} vs ${careerBatAvg.toFixed(1)}</strong>
+              <span style="font-size:10px; display:block; font-weight:700; color:${avgDiff >= 0 ? 'var(--accent-teal)' : 'var(--accent-rose)'};">${avgSign}${avgDiffPct}% Difference</span>
+            </div>
+
+            <div style="height:30px; width:1px; background:var(--border-color);"></div>
+
+            <div style="text-align:center;">
+              <span style="font-size:11px; color:var(--text-muted); display:block;">Strike Rate Delta</span>
+              <strong style="font-size:16px; font-family:var(--font-mono); color:var(--accent-sky);">${stat.sr.toFixed(1)} vs ${careerSR.toFixed(1)}</strong>
+              <span style="font-size:10px; display:block; color:${srDiff >= 0 ? 'var(--accent-sky)' : 'var(--text-muted)'};">${srSign}${srDiff.toFixed(1)} SR Points</span>
+            </div>
+
+            <div style="height:30px; width:1px; background:var(--border-color);"></div>
+
+            <div style="text-align:center;">
+              <span style="font-size:11px; color:var(--text-muted); display:block;">Boundary Ball %</span>
+              <strong style="font-size:16px; font-family:var(--font-mono); color:var(--accent-amber);">${stat.balls > 0 ? (((stat.fours + stat.sixes)/stat.balls)*100).toFixed(1) : 0}%</strong>
+              <span style="font-size:10px; display:block; color:var(--text-muted);">${stat.fours + stat.sixes} boundaries in ${stat.balls} balls</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
   },
 
   renderPitchTypeAnalysis: function(pitchTypeSummary) {

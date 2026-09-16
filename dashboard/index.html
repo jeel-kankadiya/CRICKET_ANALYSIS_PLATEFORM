@@ -544,6 +544,41 @@
             <div class="section-tag">Pitch & Stadium Intelligence</div>
             <h1 class="section-title">Venue Analytics</h1>
             <p class="section-desc">Comprehensive stadium intelligence — pitch profiles, scoring trends, toss analysis, dew factor impact, and ground characteristics across all IPL venues.</p>
+          <!-- Interactive Player vs Specific Stadium Analysis Tool -->
+          <div class="card-panel glow-cyan" style="margin-bottom:28px; padding:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+              <div>
+                <div class="section-tag" style="margin-bottom:4px;">Head-to-Head Venue Intelligence</div>
+                <h3 style="font-family:var(--font-title); font-size:20px; font-weight:800; color:var(--text-main); margin:0;">
+                  🎯 Player vs Specific Stadium Performance Deep Dive
+                </h3>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">
+                  Select any IPL player and specific stadium to inspect career runs, wickets, batting average, strike rate, and performance comparison vs overall career averages.
+                </p>
+              </div>
+            </div>
+
+            <!-- Controls: Player Dropdown + Stadium Dropdown -->
+            <div class="grid-2" style="margin-bottom:20px; gap:16px;">
+              <div>
+                <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-teal); font-weight:700; text-transform:uppercase; display:block; margin-bottom:6px;">
+                  👤 Select Player (790+ IPL Players)
+                </label>
+                <select class="control-select" id="pvVenuePlayerSelect" style="width:100%; font-size:14px; font-weight:700; padding:10px 14px; background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border-color); border-radius:var(--radius-md); cursor:pointer;">
+                </select>
+              </div>
+
+              <div>
+                <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-sky); font-weight:700; text-transform:uppercase; display:block; margin-bottom:6px;">
+                  🏟️ Select Specific Stadium / Venue
+                </label>
+                <select class="control-select" id="pvVenueStadiumSelect" style="width:100%; font-size:14px; font-weight:700; padding:10px 14px; background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border-color); border-radius:var(--radius-md); cursor:pointer;">
+                </select>
+              </div>
+            </div>
+
+            <!-- Analysis Output Container -->
+            <div id="pvVenueAnalysisOutput"></div>
           </div>
 
           <!-- Search & Filter Bar -->
