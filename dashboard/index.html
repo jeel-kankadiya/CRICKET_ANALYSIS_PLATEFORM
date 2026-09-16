@@ -79,8 +79,11 @@
           <div class="status-dot"></div>
           <div>
             <strong style="display:block; color:var(--text-main);">Pipeline Active</strong>
-            <span style="color:var(--text-dim);">1,212 Matches Synced</span>
+            <span style="color:var(--text-muted);">1,212 Matches Synced</span>
           </div>
+        </div>
+        <div style="margin-top:10px; padding:6px 12px; background:rgba(13,148,136,0.08); border:1px solid rgba(13,148,136,0.2); border-radius:6px; text-align:center;">
+          <span style="font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--accent-teal); letter-spacing:0.08em;">CHARUSAT-24AIML016</span>
         </div>
       </div>
     </aside>
@@ -102,7 +105,7 @@
         </button>
 
         <div class="header-metrics-strip">
-          <button class="tab-btn active" id="headerBattleTrigger" style="border:1px solid var(--accent-emerald); color:var(--accent-emerald); background:rgba(0,255,157,0.08); font-weight:700; font-size:12px; padding:6px 14px;">
+          <button class="tab-btn active" id="headerBattleTrigger" style="border:1px solid var(--accent-teal); color:var(--accent-teal); background:rgba(13,148,136,0.08); font-weight:700; font-size:12px; padding:6px 14px;">
             ⚔️ Player Battle
           </button>
           <div class="metric-pill">MATCHES <strong id="hdrMatches">1,212</strong></div>
@@ -115,8 +118,8 @@
       <div class="content-body">
 
         <!-- Live Broadcast Intelligence Ticker -->
-        <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 18px; display:flex; align-items:center; gap:14px; overflow:hidden; font-family:var(--font-mono); font-size:12px;">
-          <span style="background:var(--accent-crimson); color:#fff; font-weight:800; padding:3px 10px; border-radius:4px; font-size:10px; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
+        <div style="background:var(--bg-panel); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 18px; display:flex; align-items:center; gap:14px; overflow:hidden; font-family:var(--font-mono); font-size:12px; box-shadow:var(--shadow-sm);">
+          <span style="background:var(--accent-rose); color:#fff; font-weight:800; padding:3px 10px; border-radius:4px; font-size:10px; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
             <span style="width:6px; height:6px; background:#fff; border-radius:50%;"></span> LIVE BROADCAST INTEL
           </span>
           <marquee behavior="scroll" direction="left" scrollamount="5" style="color:var(--text-muted);">
@@ -217,7 +220,7 @@
               <div class="team-box">
                 <div id="simBadgeA"></div>
                 <select class="team-select-dropdown" id="simTeamASelect"></select>
-                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloA" style="color:var(--accent-emerald);">—</strong></span>
+                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloA" style="color:var(--accent-teal);">—</strong></span>
               </div>
 
               <div class="sim-vs-circle">VS</div>
@@ -225,7 +228,7 @@
               <div class="team-box">
                 <div id="simBadgeB"></div>
                 <select class="team-select-dropdown" id="simTeamBSelect"></select>
-                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloB" style="color:var(--accent-crimson);">—</strong></span>
+                <span style="font-size:12px; color:var(--text-muted);">Elo: <strong id="simMetaEloB" style="color:var(--accent-rose);">—</strong></span>
               </div>
             </div>
 
@@ -292,16 +295,16 @@
               <div class="grid-2">
                 <!-- 1. Master Dropdown Select Bar -->
                 <div style="display:flex; flex-direction:column; gap:6px;">
-                  <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-emerald); text-transform:uppercase; font-weight:700;">
+                  <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-teal); text-transform:uppercase; font-weight:700;">
                     📋 Select Player from Master List (792 Players)
                   </label>
-                  <select class="control-select" id="scoutMasterPlayerSelect" style="padding:10px 14px; font-size:14px; font-weight:600; background:var(--bg-panel-alt); border:1px solid var(--border-color); border-radius:var(--radius-md); color:var(--text-main); cursor:pointer;">
+                  <select class="control-select" id="scoutMasterPlayerSelect" style="padding:10px 14px; font-size:14px; font-weight:600; background:var(--bg-panel); border:1px solid var(--border-color); border-radius:var(--radius-md); color:var(--text-main); cursor:pointer;">
                   </select>
                 </div>
 
                 <!-- 2. Live Search Input Bar -->
                 <div style="display:flex; flex-direction:column; gap:6px; position:relative;">
-                  <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan); text-transform:uppercase; font-weight:700;">
+                  <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-sky); text-transform:uppercase; font-weight:700;">
                     🔍 Or Type Any Player Name
                   </label>
                   <input type="text" class="player-search-input" id="scoutPlayerSearchInput" placeholder="Type player name (e.g. V Kohli, MS Dhoni, JJ Bumrah)..." autocomplete="off" style="padding:9px 14px; font-size:14px; border-radius:var(--radius-md);" />
@@ -330,14 +333,14 @@
             <!-- Personal Profile Header Shield -->
             <div class="player-profile-header" style="margin-bottom:24px;">
               <div class="player-avatar-box" style="position:relative;">
-                <div style="position:absolute; top:12px; right:12px; background:var(--accent-gold); color:#000; font-family:var(--font-title); font-size:12px; font-weight:900; padding:2px 8px; border-radius:4px;" id="scoutPlayerOVR">95 OVR</div>
+                <div style="position:absolute; top:12px; right:12px; background:var(--accent-amber); color:#fff; font-family:var(--font-title); font-size:12px; font-weight:900; padding:2px 8px; border-radius:4px;" id="scoutPlayerOVR">95 OVR</div>
                 <div class="player-avatar-circle" id="scoutPlayerAvatar">VK</div>
                 <div>
                   <div class="player-name-big" id="scoutPlayerName">V Kohli</div>
                   <div class="player-team-tag" id="scoutPlayerTeams">Royal Challengers Bangalore</div>
                   <div style="font-size:12px; color:var(--text-muted); margin-top:4px;" id="scoutPlayerStyles">Right-hand bat</div>
                 </div>
-                <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-gold);" id="scoutPlayerSpan">Career Span: 2008 - 2026</div>
+                <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-amber);" id="scoutPlayerSpan">Career Span: 2008 - 2026</div>
               </div>
 
               <div style="display:flex; flex-direction:column; gap:20px;">
@@ -346,21 +349,21 @@
                   <div class="stat-widget">
                     <div class="stat-info">
                       <span class="stat-label">Batting Impact</span>
-                      <span class="stat-value" id="scoutBatImpact" style="color:var(--accent-emerald);">75.9</span>
+                      <span class="stat-value" id="scoutBatImpact" style="color:var(--accent-teal);">75.9</span>
                     </div>
                   </div>
 
                   <div class="stat-widget crimson">
                     <div class="stat-info">
                       <span class="stat-label">Bowling Impact</span>
-                      <span class="stat-value" id="scoutBowlImpact" style="color:var(--accent-crimson);">—</span>
+                      <span class="stat-value" id="scoutBowlImpact" style="color:var(--accent-rose);">—</span>
                     </div>
                   </div>
 
                   <div class="stat-widget gold">
                     <div class="stat-info">
                       <span class="stat-label">All-Rounder Index</span>
-                      <span class="stat-value" id="scoutAllrIndex" style="color:var(--accent-gold);">—</span>
+                      <span class="stat-value" id="scoutAllrIndex" style="color:var(--accent-amber);">—</span>
                     </div>
                   </div>
 
@@ -377,8 +380,8 @@
                   <div class="stat-widget" style="padding:14px 18px;">
                     <div class="stat-info">
                       <span class="stat-label">Career Runs</span>
-                      <span class="stat-value" id="batStatRuns" style="color:var(--accent-emerald); font-size:22px;">8,840</span>
-                      <span class="stat-sub">HS: <strong id="batStatHS" style="color:var(--accent-gold);">183*</strong></span>
+                      <span class="stat-value" id="batStatRuns" style="color:var(--accent-teal); font-size:22px;">8,840</span>
+                      <span class="stat-sub">HS: <strong id="batStatHS" style="color:var(--accent-amber);">183*</strong></span>
                     </div>
                   </div>
 
@@ -393,8 +396,8 @@
                   <div class="stat-widget gold" style="padding:14px 18px;">
                     <div class="stat-info">
                       <span class="stat-label">100s & 50s</span>
-                      <span class="stat-value" id="batStatMilestones" style="color:var(--accent-gold); font-size:22px;">8 | 65</span>
-                      <span class="stat-sub">Ducks: <strong id="batStatDucks" style="color:var(--accent-crimson);">10</strong></span>
+                      <span class="stat-value" id="batStatMilestones" style="color:var(--accent-amber); font-size:22px;">8 | 65</span>
+                      <span class="stat-sub">Ducks: <strong id="batStatDucks" style="color:var(--accent-rose);">10</strong></span>
                     </div>
                   </div>
 
@@ -402,7 +405,7 @@
                     <div class="stat-info">
                       <span class="stat-label">Fours & Sixes</span>
                       <span class="stat-value" id="batStatBoundaries" style="font-size:20px;">750 | 272</span>
-                      <span class="stat-sub">Boundary Runs: <strong id="batStatBoundaryPct" style="color:var(--accent-emerald);">58%</strong></span>
+                      <span class="stat-sub">Boundary Runs: <strong id="batStatBoundaryPct" style="color:var(--accent-teal);">58%</strong></span>
                     </div>
                   </div>
                 </div>
@@ -412,8 +415,8 @@
                   <div class="stat-widget crimson" style="padding:14px 18px;">
                     <div class="stat-info">
                       <span class="stat-label">Career Wickets</span>
-                      <span class="stat-value" id="bowlStatWickets" style="color:var(--accent-crimson); font-size:22px;">183</span>
-                      <span class="stat-sub">Best: <strong id="bowlStatBest" style="color:var(--accent-gold);">5/10</strong></span>
+                      <span class="stat-value" id="bowlStatWickets" style="color:var(--accent-rose); font-size:22px;">183</span>
+                      <span class="stat-sub">Best: <strong id="bowlStatBest" style="color:var(--accent-amber);">5/10</strong></span>
                     </div>
                   </div>
 
@@ -428,8 +431,8 @@
                   <div class="stat-widget gold" style="padding:14px 18px;">
                     <div class="stat-info">
                       <span class="stat-label">4w & 5w Hauls</span>
-                      <span class="stat-value" id="bowlStatHauls" style="color:var(--accent-gold); font-size:22px;">3 | 2</span>
-                      <span class="stat-sub">Maidens: <strong id="bowlStatMaidens" style="color:var(--accent-emerald);">12</strong></span>
+                      <span class="stat-value" id="bowlStatHauls" style="color:var(--accent-amber); font-size:22px;">3 | 2</span>
+                      <span class="stat-sub">Maidens: <strong id="bowlStatMaidens" style="color:var(--accent-teal);">12</strong></span>
                     </div>
                   </div>
 
@@ -437,7 +440,7 @@
                     <div class="stat-info">
                       <span class="stat-label">Strike Rate & Overs</span>
                       <span class="stat-value" id="bowlStatSROvers" style="font-size:20px;">18.7 | 560.4</span>
-                      <span class="stat-sub">Runs Conceded: <strong id="bowlStatRunsConceded" style="color:var(--accent-crimson);">4,152</strong></span>
+                      <span class="stat-sub">Runs Conceded: <strong id="bowlStatRunsConceded" style="color:var(--accent-rose);">4,152</strong></span>
                     </div>
                   </div>
                 </div>
@@ -547,7 +550,7 @@
               <div class="card-panel glow-purple">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                   <div>
-                    <h4 style="font-family:var(--font-title); font-size:16px; font-weight:700; color:var(--accent-purple);">Purple Cap Season Leaders</h4>
+                    <h4 style="font-family:var(--font-title); font-size:16px; font-weight:700; color:var(--accent-indigo);">Purple Cap Season Leaders</h4>
                     <p style="font-size:12px; color:var(--text-muted);">Top 5 wicket takers for selected season</p>
                   </div>
                   <select class="control-select" id="purpleCapSeasonSelect" style="width:130px; padding:6px 10px; font-size:12px;"></select>
@@ -766,7 +769,7 @@
   <div class="search-modal-overlay" id="searchModal">
     <div class="search-modal-card">
       <div class="modal-search-header">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-sky)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" class="modal-search-input" id="modalSearchInput" placeholder="Search player (e.g. Virat Kohli, MS Dhoni, Jasprit Bumrah)..." autocomplete="off" />
       </div>
       <div class="modal-results-list" id="modalResultsList"></div>
@@ -792,53 +795,53 @@
       <div class="battle-grid">
         <!-- Player A Select Box -->
         <div class="battle-player-card">
-          <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-emerald); font-weight:700; text-transform:uppercase;">Fighter 1 (Player A)</label>
+          <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-teal); font-weight:700; text-transform:uppercase;">Fighter 1 (Player A)</label>
           <select class="control-select" id="battleSelectA" style="width:100%; font-size:14px; font-weight:700;"></select>
           <div style="font-family:var(--font-title); font-size:22px; font-weight:800; color:var(--text-main);" id="battleNameA">V Kohli</div>
-          <div style="font-size:12px; color:var(--accent-emerald);" id="battleTeamA">Royal Challengers Bangalore</div>
+          <div style="font-size:12px; color:var(--accent-teal);" id="battleTeamA">Royal Challengers Bangalore</div>
         </div>
 
-        <div style="font-family:var(--font-title); font-size:24px; font-weight:900; color:var(--accent-crimson); text-align:center;">VS</div>
+        <div style="font-family:var(--font-title); font-size:24px; font-weight:900; color:var(--accent-rose); text-align:center;">VS</div>
 
         <!-- Player B Select Box -->
         <div class="battle-player-card">
-          <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan); font-weight:700; text-transform:uppercase;">Fighter 2 (Player B)</label>
+          <label style="font-family:var(--font-mono); font-size:11px; color:var(--accent-sky); font-weight:700; text-transform:uppercase;">Fighter 2 (Player B)</label>
           <select class="control-select" id="battleSelectB" style="width:100%; font-size:14px; font-weight:700;"></select>
           <div style="font-family:var(--font-title); font-size:22px; font-weight:800; color:var(--text-main);" id="battleNameB">MS Dhoni</div>
-          <div style="font-size:12px; color:var(--accent-cyan);" id="battleTeamB">Chennai Super Kings</div>
+          <div style="font-size:12px; color:var(--accent-sky);" id="battleTeamB">Chennai Super Kings</div>
         </div>
       </div>
 
       <!-- Comparative Metric Battle Rows -->
       <div style="display:flex; flex-direction:column; gap:10px;" id="battleMetricsContainer">
         <div class="battle-stat-row">
-          <strong style="color:var(--accent-emerald); font-family:var(--font-mono);" id="bValBatImpactA">75.9</strong>
+          <strong style="color:var(--accent-teal); font-family:var(--font-mono);" id="bValBatImpactA">75.9</strong>
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-family:var(--font-mono);">Batting Impact Score</span>
-          <strong style="color:var(--accent-cyan); font-family:var(--font-mono);" id="bValBatImpactB">65.7</strong>
+          <strong style="color:var(--accent-sky); font-family:var(--font-mono);" id="bValBatImpactB">65.7</strong>
         </div>
 
         <div class="battle-stat-row">
-          <strong style="color:var(--accent-emerald); font-family:var(--font-mono);" id="bValRunsA">8,840</strong>
+          <strong style="color:var(--accent-teal); font-family:var(--font-mono);" id="bValRunsA">8,840</strong>
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-family:var(--font-mono);">Career Runs</span>
-          <strong style="color:var(--accent-cyan); font-family:var(--font-mono);" id="bValRunsB">5,439</strong>
+          <strong style="color:var(--accent-sky); font-family:var(--font-mono);" id="bValRunsB">5,439</strong>
         </div>
 
         <div class="battle-stat-row">
-          <strong style="color:var(--accent-emerald); font-family:var(--font-mono);" id="bValAvgA">39.8</strong>
+          <strong style="color:var(--accent-teal); font-family:var(--font-mono);" id="bValAvgA">39.8</strong>
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-family:var(--font-mono);">Batting Average</span>
-          <strong style="color:var(--accent-cyan); font-family:var(--font-mono);" id="bValAvgB">38.3</strong>
+          <strong style="color:var(--accent-sky); font-family:var(--font-mono);" id="bValAvgB">38.3</strong>
         </div>
 
         <div class="battle-stat-row">
-          <strong style="color:var(--accent-emerald); font-family:var(--font-mono);" id="bValSRA">133.4</strong>
+          <strong style="color:var(--accent-teal); font-family:var(--font-mono);" id="bValSRA">133.4</strong>
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-family:var(--font-mono);">Strike Rate</span>
-          <strong style="color:var(--accent-cyan); font-family:var(--font-mono);" id="bValSRB">137.5</strong>
+          <strong style="color:var(--accent-sky); font-family:var(--font-mono);" id="bValSRB">137.5</strong>
         </div>
 
         <div class="battle-stat-row">
-          <strong style="color:var(--accent-emerald); font-family:var(--font-mono);" id="bValWktsA">4</strong>
+          <strong style="color:var(--accent-teal); font-family:var(--font-mono);" id="bValWktsA">4</strong>
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-family:var(--font-mono);">Career Wickets</span>
-          <strong style="color:var(--accent-cyan); font-family:var(--font-mono);" id="bValWktsB">0</strong>
+          <strong style="color:var(--accent-sky); font-family:var(--font-mono);" id="bValWktsB">0</strong>
         </div>
       </div>
     </div>

@@ -169,7 +169,7 @@ window.APP = {
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-family:var(--font-mono); font-size:22px; font-weight:800; color:var(--accent-emerald);">
+          <div style="font-family:var(--font-mono); font-size:22px; font-weight:800; color:var(--accent-teal);">
             ${rating.toFixed(1)}
           </div>
           <div style="font-size:11px; color:var(--text-dim); text-transform:uppercase;">Elo Power Rating</div>
@@ -530,13 +530,13 @@ window.APP = {
         trajectories.forEach(row => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td><strong style="color:var(--accent-gold); font-family:var(--font-mono);">${row.season}</strong></td>
-            <td><span style="color:var(--accent-cyan);">${row.team_name || 'Franchise'}</span></td>
+            <td><strong style="color:var(--accent-amber); font-family:var(--font-mono);">${row.season}</strong></td>
+            <td><span style="color:var(--accent-sky);">${row.team_name || 'Franchise'}</span></td>
             <td>${row.matches || 0}</td>
-            <td style="color:var(--accent-emerald); font-weight:700;">${row.runs || 0}</td>
+            <td style="color:var(--accent-teal); font-weight:700;">${row.runs || 0}</td>
             <td>${row.batting_avg ? row.batting_avg.toFixed(2) : '—'}</td>
             <td>${row.strike_rate ? row.strike_rate.toFixed(1) : '—'}</td>
-            <td style="color:var(--accent-crimson); font-weight:700;">${row.wickets || 0}</td>
+            <td style="color:var(--accent-rose); font-weight:700;">${row.wickets || 0}</td>
             <td>${row.economy ? row.economy.toFixed(2) : '—'}</td>
           `;
           personalTbody.appendChild(tr);
@@ -579,14 +579,14 @@ window.APP = {
       tr.innerHTML = `
         <td><span class="rank-badge ${overallRank === 1 ? 'rank-1' : overallRank === 2 ? 'rank-2' : overallRank === 3 ? 'rank-3' : ''}">${overallRank}</span></td>
         <td><strong style="color:var(--text-main); font-family:var(--font-title);">${p.PlayerName}</strong></td>
-        <td><span style="font-size:12px; color:var(--accent-emerald);">${(p.Teams || '').split(',')[0]}</span></td>
+        <td><span style="font-size:12px; color:var(--accent-teal);">${(p.Teams || '').split(',')[0]}</span></td>
         <td><strong>${p.Matches || 0}</strong></td>
-        <td style="color:var(--accent-emerald); font-weight:700;">${p.Runs || 0}</td>
+        <td style="color:var(--accent-teal); font-weight:700;">${p.Runs || 0}</td>
         <td>${p.BattingAverage ? p.BattingAverage.toFixed(2) : '—'}</td>
         <td>${p.StrikeRate ? p.StrikeRate.toFixed(1) : '—'}</td>
-        <td style="color:var(--accent-crimson); font-weight:700;">${p.Wickets || 0}</td>
+        <td style="color:var(--accent-rose); font-weight:700;">${p.Wickets || 0}</td>
         <td>${p.Economy ? p.Economy.toFixed(2) : '—'}</td>
-        <td style="font-family:var(--font-mono); font-weight:800; color:var(--accent-gold);">
+        <td style="font-family:var(--font-mono); font-weight:800; color:var(--accent-amber);">
           ${(p.batting_impact_score || p.bowling_impact_score || p.allrounder_index || 0).toFixed(1)}
         </td>
       `;
@@ -688,15 +688,15 @@ window.APP = {
         <div class="venue-card-stats">
           <div class="venue-card-stat">
             <span class="venue-card-stat-label">Avg 1st Inn.</span>
-            <span class="venue-card-stat-value" style="color:var(--accent-emerald)">${avgScore}</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-teal)">${avgScore}</span>
           </div>
           <div class="venue-card-stat">
             <span class="venue-card-stat-label">Bat 1st Win%</span>
-            <span class="venue-card-stat-value" style="color:var(--accent-gold)">${batWinPct}%</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-amber)">${batWinPct}%</span>
           </div>
           <div class="venue-card-stat">
             <span class="venue-card-stat-label">Dew Factor</span>
-            <span class="venue-card-stat-value" style="color:var(--accent-cyan)">${dewFactor}</span>
+            <span class="venue-card-stat-value" style="color:var(--accent-sky)">${dewFactor}</span>
           </div>
           <div class="venue-card-stat">
             <span class="venue-card-stat-label">Boundary</span>
@@ -835,11 +835,11 @@ window.APP = {
     if (scoreContainer && pitchTypeSummary.length) {
       const maxScore = Math.max(...pitchTypeSummary.map(p => p.avg_first_innings_score || 0));
       const pitchColors = {
-        'Balanced': '#00E5FF',
-        'Batting Paradise': '#FFB800',
-        'Seam Friendly': '#00FF9D',
-        'Spin Friendly': '#A855F7',
-        'Slow & Low': '#FF3B5C'
+        'Balanced': '#0EA5E9',
+        'Batting Paradise': '#D97706',
+        'Seam Friendly': '#0D9488',
+        'Spin Friendly': '#8B5CF6',
+        'Slow & Low': '#E11D48'
       };
 
       scoreContainer.innerHTML = pitchTypeSummary.map(p => {
@@ -894,7 +894,7 @@ window.APP = {
           <div class="venue-leaderboard-row">
             <span class="venue-lb-rank ${rankClass}">${i + 1}</span>
             <span class="venue-lb-name">${v.venue}</span>
-            <span class="venue-lb-value" style="color:var(--accent-emerald)">${v.avg_first_innings_score}</span>
+            <span class="venue-lb-value" style="color:var(--accent-teal)">${v.avg_first_innings_score}</span>
           </div>
         `;
       }).join('');
@@ -910,7 +910,7 @@ window.APP = {
           <div class="venue-leaderboard-row">
             <span class="venue-lb-rank ${rankClass}">${i + 1}</span>
             <span class="venue-lb-name">${v.venue}</span>
-            <span class="venue-lb-value" style="color:var(--accent-cyan)">${chasePct}%</span>
+            <span class="venue-lb-value" style="color:var(--accent-sky)">${chasePct}%</span>
           </div>
         `;
       }).join('');
@@ -932,7 +932,7 @@ window.APP = {
       card.innerHTML = `
         <div>
           <div class="stat-label">${buy.team} (${buy.year})</div>
-          <div class="stat-value" style="color:var(--accent-gold); font-size:22px;">${buy.player}</div>
+          <div class="stat-value" style="color:var(--accent-amber); font-size:22px;">${buy.player}</div>
           <div class="stat-sub">Price: ₹${buy.price_cr} Cr (${buy.role})</div>
         </div>
       `;
@@ -999,7 +999,7 @@ window.APP = {
               <strong style="color:var(--text-main);">${p.PlayerName}</strong>
               <div style="font-size:12px; color:var(--text-muted);">${p.Teams || ''}</div>
             </div>
-            <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-emerald); font-weight:700;">
+            <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-teal); font-weight:700;">
               Score: ${(p.batting_impact_score || p.bowling_impact_score || 0).toFixed(1)}
             </div>
           `;

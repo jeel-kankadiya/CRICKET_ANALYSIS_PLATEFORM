@@ -1,7 +1,7 @@
 /**
  * charts.js
  * Chart rendering engine using Chart.js v4.
- * Customized with dark glassmorphism themes, glowing gradients, and custom tooltips.
+ * Customized with clean light theme — soft grids, muted accent colors, white tooltips.
  */
 
 window.chartInstances = {};
@@ -13,17 +13,18 @@ window.destroyChart = function(id) {
   }
 };
 
-// Global Chart.js dark theme defaults
+// Global Chart.js light theme defaults
 if (typeof Chart !== 'undefined') {
-  Chart.defaults.color = '#94A3B8';
+  Chart.defaults.color = '#64748B';
   Chart.defaults.font.family = "'Inter', sans-serif";
-  Chart.defaults.plugins.tooltip.backgroundColor = '#161C2B';
-  Chart.defaults.plugins.tooltip.borderColor = 'rgba(255, 255, 255, 0.15)';
+  Chart.defaults.plugins.tooltip.backgroundColor = '#FFFFFF';
+  Chart.defaults.plugins.tooltip.borderColor = 'rgba(0, 0, 0, 0.1)';
   Chart.defaults.plugins.tooltip.borderWidth = 1;
-  Chart.defaults.plugins.tooltip.titleColor = '#F1F5F9';
-  Chart.defaults.plugins.tooltip.bodyColor = '#00FF9D';
+  Chart.defaults.plugins.tooltip.titleColor = '#1E293B';
+  Chart.defaults.plugins.tooltip.bodyColor = '#0D9488';
   Chart.defaults.plugins.tooltip.padding = 12;
   Chart.defaults.plugins.tooltip.cornerRadius = 8;
+  Chart.defaults.plugins.tooltip.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
 }
 
 /**
@@ -79,12 +80,12 @@ window.renderEloTrajectoryChart = function(canvasId, eloHistory) {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'top', labels: { usePointStyle: true, color: '#94A3B8', font: { size: 12, weight: '600' } } },
+        legend: { position: 'top', labels: { usePointStyle: true, color: '#475569', font: { size: 12, weight: '600' } } },
         tooltip: { callbacks: { label: function(ctx) { return ` ${ctx.dataset.label}: ${ctx.raw ? ctx.raw.toFixed(1) : 'N/A'} Elo`; } } }
       },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono', monospace" } } },
-        y: { min: 1300, max: 1700, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono', monospace" } } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono', monospace" } } },
+        y: { min: 1300, max: 1700, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono', monospace" } } }
       }
     }
   });
@@ -116,10 +117,10 @@ window.renderPlayerRadarChart = function(canvasId, player) {
       datasets: [{
         label: player.PlayerName,
         data: data,
-        backgroundColor: 'rgba(0, 255, 157, 0.25)',
-        borderColor: '#00FF9D',
+        backgroundColor: 'rgba(13, 148, 136, 0.15)',
+        borderColor: '#0D9488',
         borderWidth: 2,
-        pointBackgroundColor: '#00FF9D',
+        pointBackgroundColor: '#0D9488',
         pointBorderColor: '#fff',
         pointHoverRadius: 6
       }]
@@ -130,9 +131,9 @@ window.renderPlayerRadarChart = function(canvasId, player) {
       scales: {
         r: {
           min: 0, max: 100,
-          angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
-          grid: { color: 'rgba(255, 255, 255, 0.1)' },
-          pointLabels: { color: '#94A3B8', font: { size: 11, weight: '600' } },
+          angleLines: { color: 'rgba(0, 0, 0, 0.08)' },
+          grid: { color: 'rgba(0, 0, 0, 0.08)' },
+          pointLabels: { color: '#475569', font: { size: 11, weight: '600' } },
           ticks: { display: false }
         }
       },
@@ -162,8 +163,8 @@ window.renderBatterBoundaryBreakdownChart = function(canvasId, player) {
       labels: ['Runs in Fours (4s)', 'Runs in Sixes (6s)', 'Running Between Wickets'],
       datasets: [{
         data: [runsFrom4s, runsFrom6s, runsFromSingles],
-        backgroundColor: ['#00FF9D', '#00E5FF', '#FFB800'],
-        borderColor: '#111622',
+        backgroundColor: ['#0D9488', '#0EA5E9', '#D97706'],
+        borderColor: '#FFFFFF',
         borderWidth: 3,
         hoverOffset: 6
       }]
@@ -174,7 +175,7 @@ window.renderBatterBoundaryBreakdownChart = function(canvasId, player) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color: '#F1F5F9', font: { size: 11, weight: '600' } }
+          labels: { color: '#475569', font: { size: 11, weight: '600' } }
         },
         tooltip: {
           callbacks: {
@@ -218,8 +219,8 @@ window.renderBatterSeasonTrajectoryChart = function(canvasId, careerTrajectories
           type: 'bar',
           label: 'Runs Scored',
           data: runs,
-          backgroundColor: 'rgba(0, 255, 157, 0.7)',
-          borderColor: '#00FF9D',
+          backgroundColor: 'rgba(13, 148, 136, 0.6)',
+          borderColor: '#0D9488',
           borderWidth: 1,
           borderRadius: 4,
           yAxisID: 'y'
@@ -228,8 +229,8 @@ window.renderBatterSeasonTrajectoryChart = function(canvasId, careerTrajectories
           type: 'line',
           label: 'Strike Rate',
           data: sr,
-          borderColor: '#00E5FF',
-          backgroundColor: '#00E5FF',
+          borderColor: '#0EA5E9',
+          backgroundColor: '#0EA5E9',
           borderWidth: 2.5,
           tension: 0.3,
           pointRadius: 4,
@@ -241,11 +242,11 @@ window.renderBatterSeasonTrajectoryChart = function(canvasId, careerTrajectories
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'top', labels: { color: '#94A3B8', font: { weight: '600' } } } },
+      plugins: { legend: { position: 'top', labels: { color: '#475569', font: { weight: '600' } } } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono', monospace" } } },
-        y: { type: 'linear', position: 'left', title: { display: true, text: 'Runs Scored', color: '#00FF9D' }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Strike Rate', color: '#00E5FF' }, grid: { drawOnChartArea: false }, ticks: { color: '#00E5FF' } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono', monospace" } } },
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Runs Scored', color: '#0D9488' }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Strike Rate', color: '#0EA5E9' }, grid: { drawOnChartArea: false }, ticks: { color: '#0EA5E9' } }
       }
     }
   });
@@ -278,8 +279,8 @@ window.renderBowlerSeasonTrajectoryChart = function(canvasId, careerTrajectories
           type: 'bar',
           label: 'Wickets Taken',
           data: wickets,
-          backgroundColor: 'rgba(255, 59, 92, 0.75)',
-          borderColor: '#FF3B5C',
+          backgroundColor: 'rgba(225, 29, 72, 0.55)',
+          borderColor: '#E11D48',
           borderWidth: 1,
           borderRadius: 4,
           yAxisID: 'y'
@@ -288,8 +289,8 @@ window.renderBowlerSeasonTrajectoryChart = function(canvasId, careerTrajectories
           type: 'line',
           label: 'Economy Rate',
           data: economy,
-          borderColor: '#00E5FF',
-          backgroundColor: '#00E5FF',
+          borderColor: '#0EA5E9',
+          backgroundColor: '#0EA5E9',
           borderWidth: 2.5,
           tension: 0.3,
           pointRadius: 4,
@@ -301,11 +302,11 @@ window.renderBowlerSeasonTrajectoryChart = function(canvasId, careerTrajectories
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'top', labels: { color: '#94A3B8', font: { weight: '600' } } } },
+      plugins: { legend: { position: 'top', labels: { color: '#475569', font: { weight: '600' } } } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono', monospace" } } },
-        y: { type: 'linear', position: 'left', title: { display: true, text: 'Wickets', color: '#FF3B5C' }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Economy Rate', color: '#00E5FF' }, grid: { drawOnChartArea: false }, ticks: { color: '#00E5FF' } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono', monospace" } } },
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Wickets', color: '#E11D48' }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Economy Rate', color: '#0EA5E9' }, grid: { drawOnChartArea: false }, ticks: { color: '#0EA5E9' } }
       }
     }
   });
@@ -332,8 +333,8 @@ window.renderBowlerWicketEconomyChart = function(canvasId, player) {
       labels: ['Total Wickets', '4-Wicket Hauls (4w)', '5-Wicket Hauls (5w)', 'Maiden Overs'],
       datasets: [{
         data: [totalWkts, fourWkts, fiveWkts, maidens],
-        backgroundColor: ['#FF3B5C', '#FFB800', '#9D4EDD', '#00FF9D'],
-        borderColor: '#111622',
+        backgroundColor: ['#E11D48', '#D97706', '#8B5CF6', '#0D9488'],
+        borderColor: '#FFFFFF',
         borderWidth: 3,
         hoverOffset: 6
       }]
@@ -342,7 +343,7 @@ window.renderBowlerWicketEconomyChart = function(canvasId, player) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#F1F5F9', font: { size: 11, weight: '600' } } }
+        legend: { position: 'bottom', labels: { color: '#475569', font: { size: 11, weight: '600' } } }
       },
       cutout: '65%'
     }
@@ -373,11 +374,11 @@ window.renderBowlerScatterChart = function(canvasId, topBowlers) {
       datasets: [{
         label: 'IPL Top Bowlers (Econ vs Avg)',
         data: scatterData,
-        backgroundColor: 'rgba(255, 59, 92, 0.5)',
-        borderColor: '#FF3B5C',
+        backgroundColor: 'rgba(225, 29, 72, 0.35)',
+        borderColor: '#E11D48',
         borderWidth: 1.5,
-        hoverBackgroundColor: 'rgba(0, 255, 157, 0.8)',
-        hoverBorderColor: '#00FF9D'
+        hoverBackgroundColor: 'rgba(13, 148, 136, 0.6)',
+        hoverBorderColor: '#0D9488'
       }]
     },
     options: {
@@ -395,8 +396,8 @@ window.renderBowlerScatterChart = function(canvasId, topBowlers) {
         }
       },
       scales: {
-        x: { title: { display: true, text: 'Economy Rate (Econ - Lower is Better)', color: '#FF3B5C', font: { weight: '600' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y: { title: { display: true, text: 'Bowling Average (Avg - Lower is Better)', color: '#00E5FF', font: { weight: '600' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } }
+        x: { title: { display: true, text: 'Economy Rate (Econ - Lower is Better)', color: '#E11D48', font: { weight: '600' } }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y: { title: { display: true, text: 'Bowling Average (Avg - Lower is Better)', color: '#0EA5E9', font: { weight: '600' } }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } }
       }
     }
   });
@@ -423,8 +424,8 @@ window.renderPurpleCapChart = function(canvasId, topWicketTakersBySeason, season
       datasets: [{
         label: `Purple Cap Top Wicket Takers (${season})`,
         data: wkts,
-        backgroundColor: '#9D4EDD',
-        borderColor: '#7B2CBF',
+        backgroundColor: 'rgba(139, 92, 246, 0.65)',
+        borderColor: '#8B5CF6',
         borderWidth: 1,
         borderRadius: 6
       }]
@@ -435,8 +436,8 @@ window.renderPurpleCapChart = function(canvasId, topWicketTakersBySeason, season
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y: { grid: { display: false }, ticks: { color: '#F1F5F9', font: { weight: '600' } } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y: { grid: { display: false }, ticks: { color: '#1E293B', font: { weight: '600' } } }
       }
     }
   });
@@ -466,11 +467,11 @@ window.renderBatterScatterChart = function(canvasId, topBatters) {
       datasets: [{
         label: 'IPL Top Batters (SR vs Avg)',
         data: scatterData,
-        backgroundColor: 'rgba(0, 229, 255, 0.5)',
-        borderColor: '#00E5FF',
+        backgroundColor: 'rgba(14, 165, 233, 0.35)',
+        borderColor: '#0EA5E9',
         borderWidth: 1.5,
-        hoverBackgroundColor: 'rgba(0, 255, 157, 0.8)',
-        hoverBorderColor: '#00FF9D'
+        hoverBackgroundColor: 'rgba(13, 148, 136, 0.6)',
+        hoverBorderColor: '#0D9488'
       }]
     },
     options: {
@@ -488,8 +489,8 @@ window.renderBatterScatterChart = function(canvasId, topBatters) {
         }
       },
       scales: {
-        x: { title: { display: true, text: 'Strike Rate (SR)', color: '#00E5FF', font: { weight: '600' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y: { title: { display: true, text: 'Batting Average (Avg)', color: '#00FF9D', font: { weight: '600' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } }
+        x: { title: { display: true, text: 'Strike Rate (SR)', color: '#0EA5E9', font: { weight: '600' } }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y: { title: { display: true, text: 'Batting Average (Avg)', color: '#0D9488', font: { weight: '600' } }, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } }
       }
     }
   });
@@ -516,8 +517,8 @@ window.renderOrangeCapChart = function(canvasId, topScorersBySeason, season) {
       datasets: [{
         label: `Orange Cap Top Batters (${season})`,
         data: runs,
-        backgroundColor: '#FFB800',
-        borderColor: '#FFA000',
+        backgroundColor: 'rgba(217, 119, 6, 0.65)',
+        borderColor: '#D97706',
         borderWidth: 1,
         borderRadius: 6
       }]
@@ -528,8 +529,8 @@ window.renderOrangeCapChart = function(canvasId, topScorersBySeason, season) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y: { grid: { display: false }, ticks: { color: '#F1F5F9', font: { weight: '600' } } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y: { grid: { display: false }, ticks: { color: '#1E293B', font: { weight: '600' } } }
       }
     }
   });
@@ -556,8 +557,8 @@ window.renderFeatureImportanceChart = function(canvasId, featImpData) {
       datasets: [{
         label: 'Feature Importance Weight',
         data: values,
-        backgroundColor: 'rgba(0, 229, 255, 0.75)',
-        borderColor: '#00E5FF',
+        backgroundColor: 'rgba(14, 165, 233, 0.6)',
+        borderColor: '#0EA5E9',
         borderWidth: 1,
         borderRadius: 4
       }]
@@ -568,8 +569,8 @@ window.renderFeatureImportanceChart = function(canvasId, featImpData) {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } },
-        y: { grid: { display: false }, ticks: { color: '#F1F5F9', font: { weight: '500' } } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } },
+        y: { grid: { display: false }, ticks: { color: '#1E293B', font: { weight: '500' } } }
       }
     }
   });
@@ -606,10 +607,10 @@ window.renderWinsPerSeasonChart = function(canvasId, seasonWins, selectedTeam) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#F1F5F9', font: { weight: '600' } } } },
+      plugins: { legend: { labels: { color: '#475569', font: { weight: '600' } } } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono', monospace" } } },
-        y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8', stepSize: 2 } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono', monospace" } } },
+        y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B', stepSize: 2 } }
       }
     }
   });
@@ -635,18 +636,18 @@ window.renderModelComparisonChart = function(canvasId, cvResults) {
     data: {
       labels: models,
       datasets: [
-        { label: 'ROC-AUC Score', data: rocAuc, backgroundColor: '#00FF9D', borderRadius: 4 },
-        { label: 'Accuracy', data: accuracy, backgroundColor: '#00E5FF', borderRadius: 4 },
-        { label: 'Log-Loss', data: logLoss, backgroundColor: '#FFB800', borderRadius: 4 }
+        { label: 'ROC-AUC Score', data: rocAuc, backgroundColor: 'rgba(13, 148, 136, 0.7)', borderRadius: 4 },
+        { label: 'Accuracy', data: accuracy, backgroundColor: 'rgba(14, 165, 233, 0.7)', borderRadius: 4 },
+        { label: 'Log-Loss', data: logLoss, backgroundColor: 'rgba(217, 119, 6, 0.65)', borderRadius: 4 }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'top', labels: { color: '#94A3B8', font: { weight: '600' } } } },
+      plugins: { legend: { position: 'top', labels: { color: '#475569', font: { weight: '600' } } } },
       scales: {
-        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#F1F5F9', font: { weight: '600' } } },
-        y: { min: 0.5, max: 0.8, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94A3B8' } }
+        x: { grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#1E293B', font: { weight: '600' } } },
+        y: { min: 0.5, max: 0.8, grid: { color: 'rgba(0, 0, 0, 0.06)' }, ticks: { color: '#64748B' } }
       }
     }
   });
@@ -669,18 +670,18 @@ window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
   const dewFactors = pitchTypeSummary.map(p => ((p.avg_dew_factor || 0) * 100));
 
   const pitchColors = {
-    'Balanced': '#00E5FF',
-    'Batting Paradise': '#FFB800',
-    'Seam Friendly': '#00FF9D',
-    'Spin Friendly': '#A855F7',
-    'Slow & Low': '#FF3B5C'
+    'Balanced': '#0EA5E9',
+    'Batting Paradise': '#D97706',
+    'Seam Friendly': '#0D9488',
+    'Spin Friendly': '#8B5CF6',
+    'Slow & Low': '#E11D48'
   };
 
   const bgColors = labels.map(l => {
-    const c = pitchColors[l] || '#00E5FF';
-    return c + '99';
+    const c = pitchColors[l] || '#0EA5E9';
+    return c + '66';
   });
-  const borderColors = labels.map(l => pitchColors[l] || '#00E5FF');
+  const borderColors = labels.map(l => pitchColors[l] || '#0EA5E9');
 
   window.chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
@@ -699,8 +700,8 @@ window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
         {
           label: 'Bat First Win %',
           data: batWinPcts,
-          backgroundColor: 'rgba(255, 184, 0, 0.3)',
-          borderColor: '#FFB800',
+          backgroundColor: 'rgba(217, 119, 6, 0.2)',
+          borderColor: '#D97706',
           borderWidth: 2,
           borderRadius: 6,
           yAxisID: 'y1'
@@ -708,8 +709,8 @@ window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
         {
           label: 'Dew Factor %',
           data: dewFactors,
-          backgroundColor: 'rgba(0, 229, 255, 0.25)',
-          borderColor: '#00E5FF',
+          backgroundColor: 'rgba(14, 165, 233, 0.15)',
+          borderColor: '#0EA5E9',
           borderWidth: 2,
           borderRadius: 6,
           yAxisID: 'y1'
@@ -724,7 +725,7 @@ window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
         legend: {
           position: 'top',
           labels: {
-            color: '#94A3B8',
+            color: '#475569',
             font: { size: 12, weight: '600' },
             usePointStyle: true,
             padding: 16
@@ -741,24 +742,24 @@ window.renderPitchTypeComparisonChart = function(canvasId, pitchTypeSummary) {
       },
       scales: {
         x: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#F1F5F9', font: { weight: '600', size: 12 } }
+          grid: { color: 'rgba(0, 0, 0, 0.06)' },
+          ticks: { color: '#1E293B', font: { weight: '600', size: 12 } }
         },
         y: {
           position: 'left',
           min: 140,
           max: 200,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#00FF9D', font: { family: "'JetBrains Mono', monospace" } },
-          title: { display: true, text: 'Avg Score', color: '#00FF9D', font: { weight: '700' } }
+          grid: { color: 'rgba(0, 0, 0, 0.06)' },
+          ticks: { color: '#0D9488', font: { family: "'JetBrains Mono', monospace" } },
+          title: { display: true, text: 'Avg Score', color: '#0D9488', font: { weight: '700' } }
         },
         y1: {
           position: 'right',
           min: 0,
           max: 100,
           grid: { drawOnChartArea: false },
-          ticks: { color: '#FFB800', font: { family: "'JetBrains Mono', monospace" } },
-          title: { display: true, text: 'Win % / Dew %', color: '#FFB800', font: { weight: '700' } }
+          ticks: { color: '#D97706', font: { family: "'JetBrains Mono', monospace" } },
+          title: { display: true, text: 'Win % / Dew %', color: '#D97706', font: { weight: '700' } }
         }
       }
     }
