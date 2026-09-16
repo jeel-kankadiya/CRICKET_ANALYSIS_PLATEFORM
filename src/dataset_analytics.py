@@ -337,24 +337,160 @@ def availability_analytics() -> dict:
     }
 
 
+# ── 6. Player Stadium / Venue Analytics ────────────────────
+def normalize_venue_name(v):
+    if not v: return "Unknown Venue"
+    v = v.strip()
+    vl = v.lower()
+    if 'chinnaswamy' in vl: return 'M Chinnaswamy Stadium (Bengaluru)'
+    if 'wankhede' in vl: return 'Wankhede Stadium (Mumbai)'
+    if 'eden gardens' in vl: return 'Eden Gardens (Kolkata)'
+    if 'chidambaram' in vl or 'chepauk' in vl: return 'MA Chidambaram Stadium (Chennai)'
+    if 'feroz shah' in vl or 'arun jaitley' in vl or 'kotla' in vl or ('delhi' in vl and 'stadium' in vl): return 'Arun Jaitley Stadium (Delhi)'
+    if 'rajiv gandhi' in vl or 'uppal' in vl: return 'Rajiv Gandhi Intl Stadium (Hyderabad)'
+    if 'bindra' in vl or 'mohali' in vl: return 'IS Bindra Stadium (Mohali)'
+    if 'sawai mansingh' in vl or 'jaipur' in vl: return 'Sawai Mansingh Stadium (Jaipur)'
+    if 'narendra modi' in vl or 'motera' in vl or 'sardar patel' in vl: return 'Narendra Modi Stadium (Ahmedabad)'
+    if 'dy patil' in vl: return 'Dr DY Patil Sports Academy (Navi Mumbai)'
+    if 'brabourne' in vl: return 'Brabourne Stadium (Mumbai)'
+    if 'maharashtra cricket association' in vl or 'mca stadium' in vl or 'subrata roy' in vl or 'pune' in vl: return 'MCA Stadium (Pune)'
+    if 'dubai' in vl: return 'Dubai International Stadium'
+    if 'zayed' in vl or 'abu dhabi' in vl: return 'Zayed Cricket Stadium (Abu Dhabi)'
+    if 'sharjah' in vl: return 'Sharjah Cricket Stadium'
+    if 'ekana' in vl or 'lucknow' in vl: return 'Ekana Cricket Stadium (Lucknow)'
+    if 'dharamsala' in vl or 'himachal' in vl: return 'HPCA Stadium (Dharamsala)'
+    if 'barsapara' in vl or 'guwahati' in vl: return 'Barsapara Stadium (Guwahati)'
+    if 'mullanpur' in vl or 'new chandigarh' in vl or 'yadavindra' in vl: return 'Maharaja Yadavindra Stadium (Mullanpur)'
+    if 'holkar' in vl or 'indore' in vl: return 'Holkar Stadium (Indore)'
+    if 'cuttack' in vl or 'barabati' in vl: return 'Barabati Stadium (Cuttack)'
+    if 'visakhapatnam' in vl or 'aca-vdca' in vl: return 'ACA-VDCA Stadium (Visakhapatnam)'
+    if 'ranchi' in vl or 'jsca' in vl: return 'JSCA Stadium (Ranchi)'
+    if 'raipur' in vl or 'shaheed' in vl: return 'Shaheed Veer Narayan Stadium (Raipur)'
+    return v
+
+def player_venue_analytics():
+    from collections import defaultdict
+    import csv
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+    match_venue = {}
+    ipl_csv = os.path.join(DATA_DIR, 'ipl.csv')
+    if os.path.exists(ipl_csv):
+        with open(ipl_csv, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                match_venue[r['match_id']] = normalize_venue_name(r.get('venue'))
+
+    matches_csv = os.path.join(DATA_DIR, 'ipl_matches_data.csv')
+    if os.path.exists(matches_csv):
+        with open(matches_csv, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                if r['match_id'] not in match_venue and r.get('city'):
+                    match_venue[r['match_id']] = normalize_venue_name(r.get('city') + ' Stadium')
+
+    p_v_match = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'runs': 0, 'balls': 0, 'outs': 0, 'fours': 0, 'sixes': 0})))
+    p_v_bowl_match = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'runs': 0, 'balls': 0, 'wickets': 0})))
+
+    bbb_csv = os.path.join(DATA_DIR, 'ball_by_ball_data.csv')
+    if os.path.exists(bbb_csv):
+        with open(bbb_csv, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                m_id = r['match_id']
+                venue = match_venue.get(m_id, 'Other Venues')
+                batter = r['batter']
+                bowler = r.get('bowler')
+
+                try: runs = int(r['batter_runs'])
+                except: runs = 0
+
+                m_bat = p_v_match[batter][venue][m_id]
+                m_bat['runs'] += runs
+                if r.get('is_wide_ball') != '1':
+                    m_bat['balls'] += 1
+                if runs == 4: m_bat['fours'] += 1
+                elif runs == 6: m_bat['sixes'] += 1
+
+                p_out = r.get('player_out', '').strip()
+                if p_out == batter or (r.get('is_wicket') == '1' and p_out == batter):
+                    m_bat['outs'] += 1
+
+                if bowler:
+                    m_bowl = p_v_bowl_match[bowler][venue][m_id]
+                    if r.get('is_wide_ball') != '1' and r.get('is_no_ball') != '1':
+                        m_bowl['balls'] += 1
+                    noball_r = int(r.get('no_ball_runs', 0) or 0)
+                    wide_r = int(r.get('wide_ball_runs', 0) or 0)
+                    m_bowl['runs'] += (runs + noball_r + wide_r)
+                    w_kind = r.get('wicket_kind', '')
+                    if r.get('is_wicket') == '1' and w_kind not in ['run out', 'retired hurt', 'obstructing the field', 'hit double ball']:
+                        m_bowl['wickets'] += 1
+
+    player_venue_summary = {}
+    all_players = set(p_v_match.keys()) | set(p_v_bowl_match.keys())
+
+    for player in all_players:
+        venues_stat = []
+        v_dict = p_v_match[player]
+        b_dict = p_v_bowl_match[player]
+        all_v = set(v_dict.keys()) | set(b_dict.keys())
+
+        for venue in all_v:
+            matches_bat = v_dict[venue]
+            bat_inn = len(matches_bat)
+            total_runs = sum(m['runs'] for m in matches_bat.values())
+            total_balls = sum(m['balls'] for m in matches_bat.values())
+            total_outs = sum(m['outs'] for m in matches_bat.values())
+            total_4s = sum(m['fours'] for m in matches_bat.values())
+            total_6s = sum(m['sixes'] for m in matches_bat.values())
+
+            hs = max((m['runs'] for m in matches_bat.values()), default=0)
+            fifties = sum(1 for m in matches_bat.values() if 50 <= m['runs'] < 100)
+            hundreds = sum(1 for m in matches_bat.values() if m['runs'] >= 100)
+
+            avg = round(total_runs / total_outs, 1) if total_outs > 0 else (float(total_runs) if total_runs > 0 else 0.0)
+            sr = round((total_runs / total_balls) * 100, 1) if total_balls > 0 else 0.0
+
+            matches_bowl = b_dict[venue]
+            bowl_inn = len(matches_bowl)
+            b_runs = sum(m['runs'] for m in matches_bowl.values())
+            b_balls = sum(m['balls'] for m in matches_bowl.values())
+            b_wkts = sum(m['wickets'] for m in matches_bowl.values())
+            b_econ = round(b_runs / (b_balls / 6.0), 2) if b_balls >= 6 else 0.0
+
+            if total_runs > 0 or b_wkts > 0 or bat_inn > 0 or bowl_inn > 0:
+                venues_stat.append({
+                    'venue': venue,
+                    'runs': total_runs,
+                    'innings': bat_inn,
+                    'balls': total_balls,
+                    'avg': avg,
+                    'sr': sr,
+                    'hs': hs,
+                    'fifties': fifties,
+                    'hundreds': hundreds,
+                    'fours': total_4s,
+                    'sixes': total_6s,
+                    'wickets': b_wkts,
+                    'bowl_innings': bowl_inn,
+                    'economy': b_econ
+                })
+
+        venues_stat.sort(key=lambda x: -x['runs'])
+        player_venue_summary[player] = venues_stat
+
+    return player_venue_summary
+
+
 # ─────────────────────────────────────────────────────────
 # MAIN AGGREGATOR
 # ─────────────────────────────────────────────────────────
 
 def build_all_analytics() -> dict:
-    """
-    Executes all 5 analytics sub-modules and returns a unified JSON-serializable dictionary.
-
-    Returns:
-        dict: Master analytics bundle containing 'auction', 'venue_intel',
-              'points_table', 'player_trends', and 'availability'.
-    """
     return {
         "auction":      auction_analytics(),
         "venue_intel":  venue_intelligence(),
         "points_table": points_table_analytics(),
         "player_trends":player_season_trends(),
         "availability": availability_analytics(),
+        "player_venue": player_venue_analytics(),
     }
 
 

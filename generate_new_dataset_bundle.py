@@ -422,6 +422,13 @@ def patch_html(new_keys: dict):
     print(f'Patched {DASH_HTML}')
     print(f'  New DATA size: {len(new_json_str):,} bytes')
 
+    # Also save to outputs/dashboard_data.json
+    out_file = os.path.join(os.path.dirname(__file__), 'outputs', 'dashboard_data.json')
+    if os.path.exists(os.path.dirname(out_file)):
+        with open(out_file, 'w', encoding='utf-8') as f:
+            json.dump(data_obj, f, default=str)
+        print(f'Updated {out_file} with player_venue_stats ({len(new_keys["player_venue"])} players)')
+
 
 if __name__ == '__main__':
     print('Generating new dataset analytics...')

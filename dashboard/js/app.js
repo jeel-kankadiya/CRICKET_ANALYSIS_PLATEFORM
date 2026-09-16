@@ -963,27 +963,56 @@ window.APP = {
       });
     }
 
-    // Populate Stadiums dropdown if empty
-    if (stadiumSelect.options.length === 0 && this.data.player_venue_stats) {
-      const allStadiumsSet = new Set();
-      Object.values(this.data.player_venue_stats).forEach(vList => {
-        vList.forEach(v => allStadiumsSet.add(v.venue));
-      });
-      const sortedStadiums = Array.from(allStadiumsSet).sort();
-      sortedStadiums.forEach(s => {
-        stadiumSelect.add(new Option(s, s, false, s.includes('Eden Gardens')));
-      });
-    }
-
     // Attach listeners once
     if (!playerSelect.hasAttribute('data-pv-init')) {
       playerSelect.setAttribute('data-pv-init', 'true');
-      playerSelect.addEventListener('change', () => this.renderPlayerVenueAnalysisOutput());
+      playerSelect.addEventListener('change', () => {
+        this.updateStadiumOptionsForSelectedPlayer();
+        this.renderPlayerVenueAnalysisOutput();
+      });
       stadiumSelect.addEventListener('change', () => this.renderPlayerVenueAnalysisOutput());
     }
 
-    // Render output
+    this.updateStadiumOptionsForSelectedPlayer();
     this.renderPlayerVenueAnalysisOutput();
+  },
+
+  updateStadiumOptionsForSelectedPlayer: function() {
+    const playerSelect = document.getElementById('pvVenuePlayerSelect');
+    const stadiumSelect = document.getElementById('pvVenueStadiumSelect');
+    if (!playerSelect || !stadiumSelect || !this.data) return;
+
+    const pName = playerSelect.value || 'V Kohli';
+    const currentVal = stadiumSelect.value;
+    stadiumSelect.innerHTML = '';
+
+    const pVenueList = (this.data.player_venue_stats && this.data.player_venue_stats[pName]) || [];
+
+    if (pVenueList.length > 0) {
+      pVenueList.forEach((v, idx) => {
+        const label = `${v.venue} (${v.runs.toLocaleString()} runs${v.wickets > 0 ? ', ' + v.wickets + ' wkts' : ''})`;
+        const opt = new Option(label, v.venue);
+        stadiumSelect.add(opt);
+      });
+      // Try to preserve currentVal if it exists in list, else pick first
+      const exists = pVenueList.some(v => v.venue === currentVal);
+      if (exists) {
+        stadiumSelect.value = currentVal;
+      } else {
+        stadiumSelect.selectedIndex = 0;
+      }
+    } else {
+      // Fallback: list all venues
+      const allStadiumsSet = new Set();
+      if (this.data.player_venue_stats) {
+        Object.values(this.data.player_venue_stats).forEach(vList => {
+          vList.forEach(v => allStadiumsSet.add(v.venue));
+        });
+      }
+      Array.from(allStadiumsSet).sort().forEach(s => {
+        stadiumSelect.add(new Option(s, s));
+      });
+    }
   },
 
   renderPlayerVenueAnalysisOutput: function() {
@@ -993,7 +1022,7 @@ window.APP = {
     if (!outputContainer || !playerSelect || !stadiumSelect || !this.data) return;
 
     const pName = playerSelect.value || 'V Kohli';
-    const sName = stadiumSelect.value || 'Eden Gardens (Kolkata)';
+    const sName = stadiumSelect.value || (stadiumSelect.options[0] ? stadiumSelect.options[0].value : 'Eden Gardens (Kolkata)');
 
     const pObj = (this.data.all_players || []).find(p => p.PlayerName === pName) || { PlayerName: pName };
     const pVenueList = (this.data.player_venue_stats && this.data.player_venue_stats[pName]) || [];

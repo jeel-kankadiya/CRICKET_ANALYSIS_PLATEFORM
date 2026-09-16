@@ -232,6 +232,7 @@ def main():
         "points_table_history": new_analytics["points_table"],
         "player_season_trends": new_analytics["player_trends"],
         "availability_summary": new_analytics["availability"],
+        "player_venue_stats":   new_analytics["player_venue"],
     }
 
     out_path = os.path.join(OUTPUTS_DIR, "dashboard_data.json")
