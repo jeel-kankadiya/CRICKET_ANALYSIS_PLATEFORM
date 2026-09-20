@@ -2,7 +2,7 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 
-const PORT = 5000;
+let PORT = parseInt(process.env.PORT, 10) || 5000;
 const DASHBOARD = path.join(__dirname, 'dashboard', 'index.html');
 const OUTPUTS_DIR = path.join(__dirname, 'outputs');
 const DATASET_FILE = path.join(OUTPUTS_DIR, 'dashboard_data.json');
@@ -32,7 +32,7 @@ function getDataset() {
 }
 getDataset(); // Initial load
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const reqUrl = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = reqUrl.pathname;
 
@@ -49,34 +49,62 @@ http.createServer((req, res) => {
   // API Endpoints
   if (pathname === '/api/data' || pathname === '/outputs/dashboard_data.json') {
     const data = getDataset();
-    if (!data) { res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load dataset' })); return; }
+    if (!data) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Dataset not available' }));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
     return;
   }
 
-  if (pathname === '/api/players') {
+  if (pathname === '/api/player') {
+    const query = reqUrl.searchParams.get('q') || '';
     const data = getDataset();
-    const players = data ? data.all_players || [] : [];
+    if (!data || !data.players) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Dataset not available' }));
+      return;
+    }
+    const qLower = query.toLowerCase();
+    const matched = Object.entries(data.players)
+      .filter(([name]) => name.toLowerCase().includes(qLower))
+      .slice(0, 10)
+      .map(([name, stats]) => ({ name, ...stats }));
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ total: players.length, players }));
+    res.end(JSON.stringify({ query, count: matched.length, players: matched }));
     return;
   }
 
-  if (pathname.startsWith('/api/player')) {
-    const q = (reqUrl.searchParams.get('q') || pathname.replace('/api/player/', '') || '').trim().toLowerCase();
+  if (pathname === '/api/venues') {
     const data = getDataset();
-    const players = data ? data.all_players || [] : [];
-    if (!q) {
-      res.writeHead(400); res.end(JSON.stringify({ error: 'Query parameter q is required' })); return;
+    if (!data || !data.venues) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Dataset not available' }));
+      return;
     }
-    const matches = players.filter(p => 
-      (p.PlayerName && p.PlayerName.toLowerCase().includes(q)) ||
-      (p.player_full_name && p.player_full_name.toLowerCase().includes(q)) ||
-      (p.Teams && p.Teams.toLowerCase().includes(q))
-    );
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ query: q, count: matches.length, players: matches }));
+    res.end(JSON.stringify(data.venues));
+    return;
+  }
+
+  if (pathname === '/api/stats') {
+    const data = getDataset();
+    if (!data) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Dataset not available' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      totalMatches: data.generated_from_matches,
+      seasons: data.seasons,
+      playersCount: Object.keys(data.players || {}).length,
+      venuesCount: Object.keys(data.venues || {}).length,
+      topBatsmenCount: (data.top_batsmen || []).length,
+      topBowlersCount: (data.top_bowlers || []).length
+    }));
     return;
   }
 
@@ -116,10 +144,25 @@ http.createServer((req, res) => {
 
   const ts = new Date().toISOString();
   console.log(`${req.method} ${pathname} - ${ts}`);
-}).listen(PORT, () => {
-  console.log(`\n🏏  Cricket Intelligence Platform`);
-  console.log(`    Dashboard → http://localhost:${PORT}`);
-  console.log(`    API Data  → http://localhost:${PORT}/api/data`);
-  console.log(`    API Player → http://localhost:${PORT}/api/player?q=virat\n`);
 });
 
+function listen(port) {
+  server.listen(port, () => {
+    console.log(`\n🏏  Cricket Intelligence Platform`);
+    console.log(`    Dashboard → http://localhost:${port}`);
+    console.log(`    API Data  → http://localhost:${port}/api/data`);
+    console.log(`    API Player → http://localhost:${port}/api/player?q=virat\n`);
+  });
+}
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`⚠️  Port ${PORT} is in use. Trying port ${PORT + 1}...`);
+    PORT++;
+    listen(PORT);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+listen(PORT);

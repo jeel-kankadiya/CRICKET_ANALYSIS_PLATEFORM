@@ -24,10 +24,17 @@ window.APP = {
   },
 
   loadData: async function() {
-    // 1. Try to use inline window.DATA if pre-embedded
-    if (window.DATA && window.DATA.generated_from_matches) {
-      console.log("Found embedded DATA bundle.");
+    // 1. Try to use inline window.DATA if pre-embedded and complete with all_players
+    if (window.DATA && window.DATA.generated_from_matches && window.DATA.all_players && window.DATA.all_players.length > 0) {
+      console.log("Found complete embedded DATA bundle.");
       this.data = window.DATA;
+      return;
+    }
+
+    if (typeof DATA !== 'undefined' && DATA && DATA.generated_from_matches && DATA.all_players && DATA.all_players.length > 0) {
+      console.log("Found complete inline const DATA bundle.");
+      this.data = DATA;
+      window.DATA = DATA;
       return;
     }
 
@@ -35,28 +42,114 @@ window.APP = {
     try {
       const res = await fetch('/api/data');
       if (res.ok) {
-        this.data = await res.json();
-        window.DATA = this.data;
-        console.log("Loaded dataset bundle via /api/data.");
-        return;
+        const json = await res.json();
+        if (json && json.all_players && json.all_players.length > 0) {
+          this.data = json;
+          window.DATA = json;
+          console.log("Loaded full dataset bundle via /api/data:", json.all_players.length, "players");
+          return;
+        }
       }
     } catch (e) {
       console.warn("Could not fetch /api/data:", e);
     }
+
+    // 3. Fallback to direct static JSON file fetch /outputs/dashboard_data.json
+    try {
+      const res = await fetch('/outputs/dashboard_data.json');
+      if (res.ok) {
+        const json = await res.json();
+        this.data = json;
+        window.DATA = json;
+        console.log("Loaded full dataset bundle via /outputs/dashboard_data.json:", json.all_players.length, "players");
+        return;
+      }
+    } catch (e) {
+      console.error("Could not fetch /outputs/dashboard_data.json fallback:", e);
+    }
   },
+
+  // Track which sections have been rendered to avoid duplicate renders
+  _renderedSections: {},
 
   renderAll: function() {
     if (!this.data) return;
 
     this.renderHeaderMetrics();
     this.renderOverviewSection();
-    this.renderEloSection();
+
+    // Only render the currently visible section's charts immediately.
+    // Other sections are rendered lazily when navigated to,
+    // because Chart.js cannot size canvases inside display:none containers.
+    this._renderedSections['overview-section'] = true;
+
+    // Pre-render non-chart data (dropdowns, tables, event listeners)
     this.renderSimulatorSection();
     this.renderPlayerScoutSection();
     this.renderLeaderboardsTable();
     this.renderVenueSection();
     this.renderAuctionSection();
-    this.renderMLSection();
+  },
+
+  renderSectionCharts: function(sectionId) {
+    if (!this.data) return;
+    if (this._renderedSections[sectionId]) {
+      // Section already rendered — just resize existing charts
+      this.resizeAllChartsInSection(sectionId);
+      return;
+    }
+    this._renderedSections[sectionId] = true;
+
+    switch(sectionId) {
+      case 'elo-section':
+        this.renderEloSection();
+        break;
+      case 'player-section':
+        this.reRenderPlayerCharts();
+        break;
+      case 'venue-section':
+        if (window.renderPitchTypeComparisonChart && this.data.venue_intelligence) {
+          window.renderPitchTypeComparisonChart('pitchTypeChartCanvas', this.data.venue_intelligence.pitch_type_summary || []);
+        }
+        break;
+      case 'model-section':
+        this.renderMLSection();
+        break;
+    }
+  },
+
+  resizeAllChartsInSection: function(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+    const canvases = section.querySelectorAll('canvas');
+    canvases.forEach(canvas => {
+      const chartInstance = window.chartInstances[canvas.id];
+      if (chartInstance) {
+        chartInstance.resize();
+      }
+    });
+  },
+
+  reRenderPlayerCharts: function() {
+    if (this.selectedPlayer) {
+      this.selectPlayerProfile(this.selectedPlayer);
+    }
+    // Re-render league benchmark charts
+    if (window.renderBatterScatterChart && this.data.leaderboards) {
+      window.renderBatterScatterChart('batterScatterCanvas', this.data.leaderboards.top_batters || []);
+    }
+    if (window.renderBowlerScatterChart && this.data.leaderboards) {
+      window.renderBowlerScatterChart('bowlerScatterCanvas', this.data.leaderboards.top_bowlers || []);
+    }
+    // Re-render Orange/Purple cap charts
+    const orangeSelect = document.getElementById('orangeCapSeasonSelect');
+    if (orangeSelect && window.renderOrangeCapChart && this.data.player_season_trends) {
+      window.renderOrangeCapChart('orangeCapChartCanvas', this.data.player_season_trends.top_run_scorers_by_season, orangeSelect.value);
+    }
+    const purpleSelect = document.getElementById('purpleCapSeasonSelect');
+    if (purpleSelect && window.renderPurpleCapChart && this.data.player_season_trends) {
+      window.renderPurpleCapChart('purpleCapChartCanvas', this.data.player_season_trends.top_wicket_takers_by_season, purpleSelect.value);
+    }
   },
 
   setupNavigation: function() {
@@ -78,6 +171,12 @@ window.APP = {
           targetSec.style.display = 'block';
           targetSec.classList.add('animate-fade-in');
           this.activeSection = targetId;
+
+          // Render charts for the newly visible section
+          // (Chart.js needs the container to be visible to calculate dimensions)
+          requestAnimationFrame(() => {
+            this.renderSectionCharts(targetId);
+          });
         }
 
         // Close mobile drawer if open
@@ -273,30 +372,38 @@ window.APP = {
     // 1. Populate Master Dropdown Select Bar (792 Players)
     const masterSelect = document.getElementById('scoutMasterPlayerSelect');
     if (masterSelect) {
-      masterSelect.innerHTML = '';
-      const sortedPlayers = [...d.all_players].sort((a, b) => (a.PlayerName || '').localeCompare(b.PlayerName || ''));
-      sortedPlayers.forEach(p => {
-        const teamShort = p.Teams ? p.Teams.split(',')[0] : '';
-        const opt = new Option(`${p.PlayerName} (${teamShort})`, p.PlayerName);
-        masterSelect.add(opt);
-      });
+      if (masterSelect.options.length === 0) {
+        masterSelect.innerHTML = '';
+        const sortedPlayers = [...d.all_players].sort((a, b) => (a.PlayerName || '').localeCompare(b.PlayerName || ''));
+        sortedPlayers.forEach(p => {
+          const teamShort = p.Teams ? p.Teams.split(',')[0] : '';
+          const opt = new Option(`${p.PlayerName} (${teamShort})`, p.PlayerName);
+          masterSelect.add(opt);
+        });
+      }
 
-      masterSelect.addEventListener('change', (e) => {
-        const target = d.all_players.find(p => p.PlayerName === e.target.value);
-        if (target) this.selectPlayerProfile(target);
-      });
+      if (!masterSelect.hasAttribute('data-init')) {
+        masterSelect.setAttribute('data-init', 'true');
+        masterSelect.addEventListener('change', (e) => {
+          const target = d.all_players.find(p => p.PlayerName === e.target.value);
+          if (target) this.selectPlayerProfile(target);
+        });
+      }
     }
 
     // 2. Quick Player Preset Pills Click Listeners
     const quickBtns = document.querySelectorAll('.quick-player-btn');
     quickBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        quickBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const pName = btn.getAttribute('data-player');
-        const target = d.all_players.find(p => p.PlayerName === pName || (p.PlayerName && p.PlayerName.includes(pName)));
-        if (target) this.selectPlayerProfile(target);
-      });
+      if (!btn.hasAttribute('data-init')) {
+        btn.setAttribute('data-init', 'true');
+        btn.addEventListener('click', () => {
+          quickBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const pName = btn.getAttribute('data-player');
+          const target = d.all_players.find(p => p.PlayerName === pName || (p.PlayerName && p.PlayerName.includes(pName)));
+          if (target) this.selectPlayerProfile(target);
+        });
+      }
     });
 
     // 3. Dedicated Player Scouting Search Input Autocomplete
@@ -1280,8 +1387,41 @@ window.APP = {
     const searchTrigger = document.getElementById('headerSearchTrigger');
     const modalResults = document.getElementById('modalResultsList');
 
+    const renderSearchList = (query = '') => {
+      if (!modalResults || !this.data || !this.data.all_players) return;
+      modalResults.innerHTML = '';
+      const q = query.toLowerCase().trim();
+      let matches = [];
+      if (!q) {
+        matches = this.data.all_players.slice(0, 15);
+      } else {
+        matches = this.data.all_players.filter(p => p.PlayerName && p.PlayerName.toLowerCase().includes(q)).slice(0, 15);
+      }
+
+      matches.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.innerHTML = `
+          <div>
+            <strong style="color:var(--text-main); font-size:14px;">${p.PlayerName}</strong>
+            <div style="font-size:12px; color:var(--text-muted);">${p.Teams || 'IPL Franchise'} | Span: ${p.Span || 'N/A'}</div>
+          </div>
+          <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-teal); font-weight:700;">
+            Runs: ${(p.Runs || 0).toLocaleString()} | Wkts: ${p.Wkts || 0}
+          </div>
+        `;
+        div.addEventListener('click', () => {
+          closeSearch();
+          this.switchSection('player-section');
+          this.selectPlayerProfile(p);
+        });
+        modalResults.appendChild(div);
+      });
+    };
+
     const openSearch = () => {
       if (searchModal) searchModal.style.display = 'flex';
+      renderSearchList(modalInput ? modalInput.value : '');
       if (modalInput) modalInput.focus();
     };
 
@@ -1306,33 +1446,9 @@ window.APP = {
       });
     }
 
-    if (modalInput && modalResults) {
+    if (modalInput) {
       modalInput.addEventListener('input', (e) => {
-        const q = e.target.value.toLowerCase().trim();
-        modalResults.innerHTML = '';
-        if (!q || !this.data || !this.data.all_players) return;
-
-        const matches = this.data.all_players.filter(p => p.PlayerName && p.PlayerName.toLowerCase().includes(q)).slice(0, 10);
-        matches.forEach(p => {
-          const div = document.createElement('div');
-          div.className = 'autocomplete-item';
-          div.innerHTML = `
-            <div>
-              <strong style="color:var(--text-main);">${p.PlayerName}</strong>
-              <div style="font-size:12px; color:var(--text-muted);">${p.Teams || ''}</div>
-            </div>
-            <div style="font-family:var(--font-mono); font-size:12px; color:var(--accent-teal); font-weight:700;">
-              Score: ${(p.batting_impact_score || p.bowling_impact_score || 0).toFixed(1)}
-            </div>
-          `;
-          div.addEventListener('click', () => {
-            closeSearch();
-            this.selectPlayerProfile(p);
-            const scoutNav = document.querySelector('[data-target="player-section"]');
-            if (scoutNav) scoutNav.click();
-          });
-          modalResults.appendChild(div);
-        });
+        renderSearchList(e.target.value);
       });
     }
 

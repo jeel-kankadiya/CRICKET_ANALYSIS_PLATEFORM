@@ -55,6 +55,7 @@
   --accent-gold: var(--accent-amber);
   --accent-crimson: var(--accent-rose);
   --bg-dark: var(--bg-dark-inset);
+  --bg-card: var(--bg-panel);
 }
 
 /* Base Setup */
@@ -688,6 +689,12 @@ body {
 .control-select:focus, .control-input:focus {
   border-color: var(--accent-teal);
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+}
+
+.control-select option, select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px 12px;
 }
 
 /* ==========================================================================
