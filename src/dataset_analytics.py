@@ -480,6 +480,142 @@ def player_venue_analytics():
 
 
 # ─────────────────────────────────────────────────────────
+# 7. PLAYING XI DATA (Team Rosters + Player Roles)
+# ─────────────────────────────────────────────────────────
+
+# Recognised bowling style keywords that indicate a genuine bowler
+_BOWL_STYLES = {
+    'fast', 'medium', 'offbreak', 'orthodox', 'legbreak', 'chinaman',
+    'wrist spin', 'leg break', 'left arm', 'right arm', 'slow',
+}
+
+
+def _is_bowling_style(style_str):
+    """Return True if *style_str* looks like a genuine bowling type."""
+    if not style_str or not isinstance(style_str, str):
+        return False
+    sl = style_str.strip().lower()
+    if not sl or sl in ('', '-', 'null', 'none', 'nan'):
+        return False
+    return any(kw in sl for kw in _BOWL_STYLES)
+
+
+def build_playing_xi_data() -> dict:
+    """
+    Build data required by the Best Playing XI generator feature.
+
+    Returns dict with:
+      - team_rosters : { team_name: [player_name, ...] }  — latest 3 seasons
+      - player_roles : { player_name: 'Batsman'|'Bowler'|'Wicketkeeper'|'All-Rounder' }
+      - venues_list  : [venue_name, ...]  — unique venues from player_venue_stats
+    """
+    import csv
+
+    DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+
+    # ── 1. Build team rosters from the latest 3 seasons ────────────────────
+    pss_csv = os.path.join(DATA_DIR, "player_season_stats.csv")
+    season_team_player = {}  # {season: {team: set(players)}}
+    all_seasons = set()
+
+    with open(pss_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            season_str = str(r.get("season", "")).strip()
+            try:
+                s = int(season_str.split("/")[0])
+            except (ValueError, IndexError):
+                continue
+            all_seasons.add(s)
+            team = r["team_name"]
+            player = r["player_name"]
+            season_team_player.setdefault(s, {}).setdefault(team, set()).add(player)
+
+    # Use the latest 3 seasons to build rosters
+    latest_seasons = sorted(all_seasons, reverse=True)[:3]
+    team_rosters = {}
+    for s in latest_seasons:
+        for team, players in season_team_player.get(s, {}).items():
+            team_rosters.setdefault(team, set()).update(players)
+
+    # Convert sets to sorted lists
+    team_rosters = {t: sorted(list(ps)) for t, ps in team_rosters.items()}
+
+    # ── 2. Classify player roles ───────────────────────────────────────────
+    # Load player metadata (field_pos, bowl_style)
+    players_csv = os.path.join(DATA_DIR, "players_data_updated.csv")
+    player_meta = {}  # {player_name: {field_pos, bowl_style}}
+    with open(players_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            player_meta[r["player_name"]] = {
+                "field_pos": (r.get("field_pos") or "").strip(),
+                "bowl_style": (r.get("bowl_style") or "").strip(),
+            }
+
+    # Load career stats from ipl_allround.csv for innings counts
+    allround_csv = os.path.join(DATA_DIR, "ipl_allround.csv")
+    player_career = {}  # {player_name: {bat_inn, bowl_inn}}
+    with open(allround_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            name = r["PlayerName"]
+            try:
+                bat_inn = int(r.get("Innings") or 0)
+            except (ValueError, TypeError):
+                bat_inn = 0
+            try:
+                bowl_inn = int(r.get("BowlInnings") or 0)
+            except (ValueError, TypeError):
+                bowl_inn = 0
+            player_career[name] = {"bat_inn": bat_inn, "bowl_inn": bowl_inn}
+
+    # Classify every player in the rosters
+    player_roles = {}
+    all_roster_players = set()
+    for players in team_rosters.values():
+        all_roster_players.update(players)
+
+    for p in all_roster_players:
+        meta = player_meta.get(p, {})
+        career = player_career.get(p, {"bat_inn": 0, "bowl_inn": 0})
+        fp = meta.get("field_pos", "").lower()
+        bs = meta.get("bowl_style", "")
+
+        # Wicketkeeper
+        if "wicketkeeper" in fp:
+            player_roles[p] = "Wicketkeeper"
+        # All-Rounder: substantial contribution in both batting and bowling
+        elif career["bat_inn"] >= 10 and career["bowl_inn"] >= 10:
+            player_roles[p] = "All-Rounder"
+        # Bowler: has a recognised bowling style and meaningful bowling innings
+        elif _is_bowling_style(bs) and career["bowl_inn"] >= 5:
+            player_roles[p] = "Bowler"
+        # Default: Batsman
+        else:
+            player_roles[p] = "Batsman"
+
+    # ── 3. Unique venues list ──────────────────────────────────────────────
+    # Extracted from ball-by-ball via the same venue normalisation logic
+    bbb_csv = os.path.join(DATA_DIR, "ball_by_ball_data.csv")
+    ipl_csv = os.path.join(DATA_DIR, "ipl.csv")
+
+    venue_set = set()
+    # Pull venues from ipl.csv (match-level data)
+    if os.path.exists(ipl_csv):
+        with open(ipl_csv, newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                v = normalize_venue_name(r.get("venue"))
+                if v and v != "Unknown Venue":
+                    venue_set.add(v)
+
+    venues_list = sorted(venue_set)
+
+    return {
+        "team_rosters": team_rosters,
+        "player_roles": player_roles,
+        "venues_list": venues_list,
+    }
+
+
+# ─────────────────────────────────────────────────────────
 # MAIN AGGREGATOR
 # ─────────────────────────────────────────────────────────
 
@@ -491,6 +627,7 @@ def build_all_analytics() -> dict:
         "player_trends":player_season_trends(),
         "availability": availability_analytics(),
         "player_venue": player_venue_analytics(),
+        "playing_xi":   build_playing_xi_data(),
     }
 
 

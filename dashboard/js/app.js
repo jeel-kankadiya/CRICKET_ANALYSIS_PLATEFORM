@@ -89,6 +89,7 @@ window.APP = {
     this.renderLeaderboardsTable();
     this.renderVenueSection();
     this.renderAuctionSection();
+    this.renderPlayingXISection();
   },
 
   renderSectionCharts: function(sectionId) {
@@ -1566,6 +1567,299 @@ window.APP = {
         this.renderPlayerVenueTable(curPlayer);
       });
     }
+  },
+
+  // ─── BEST PLAYING XI SECTION ─────────────────────────────────────────
+  renderPlayingXISection: function() {
+    const d = this.data;
+    if (!d) return;
+
+    const sel1 = document.getElementById('xiTeam1Select');
+    const sel2 = document.getElementById('xiTeam2Select');
+    const selV = document.getElementById('xiVenueSelect');
+    const genBtn = document.getElementById('xiGenerateBtn');
+
+    if (!sel1 || !sel2 || !selV) return;
+
+    // Populate team dropdowns from current_elo_ratings or playing_xi_data
+    const teams = d.playing_xi_data && d.playing_xi_data.team_rosters
+      ? Object.keys(d.playing_xi_data.team_rosters).sort()
+      : Object.keys(d.current_elo_ratings || {}).sort();
+
+    sel1.innerHTML = '';
+    sel2.innerHTML = '';
+    teams.forEach((t, i) => {
+      sel1.add(new Option(t, t, false, i === 0));
+      sel2.add(new Option(t, t, false, i === 1));
+    });
+
+    // Populate venue dropdown
+    const venues = (d.playing_xi_data && d.playing_xi_data.venues_list) || [];
+    selV.innerHTML = '';
+    if (venues.length > 0) {
+      venues.forEach(v => selV.add(new Option(v, v)));
+    } else if (d.venue_stats) {
+      d.venue_stats.forEach(v => selV.add(new Option(v.venue, v.venue)));
+    }
+
+    // Generate button click handler
+    if (genBtn) {
+      genBtn.addEventListener('click', () => this.generatePlayingXI());
+    }
+  },
+
+  generatePlayingXI: async function() {
+    const team1 = document.getElementById('xiTeam1Select').value;
+    const team2 = document.getElementById('xiTeam2Select').value;
+    const venue = document.getElementById('xiVenueSelect').value;
+    const btn = document.getElementById('xiGenerateBtn');
+    const output = document.getElementById('xiResultsOutput');
+
+    if (!team1 || !team2 || !venue) return;
+
+    // Show loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="xi-spinner"></span> Generating...';
+
+    // Try API first, then fallback to client-side computation
+    let result = null;
+    try {
+      const url = `/api/playing-xi?team1=${encodeURIComponent(team1)}&team2=${encodeURIComponent(team2)}&venue=${encodeURIComponent(venue)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        result = await res.json();
+      }
+    } catch (e) {
+      console.warn('API call failed, using client-side fallback:', e);
+    }
+
+    // Client-side fallback
+    if (!result) {
+      result = this._computePlayingXIClientSide(team1, team2, venue);
+    }
+
+    // Restore button
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      Generate Best Playing XI
+    `;
+
+    // Render results
+    if (result) {
+      this.renderPlayingXIResults(result, output);
+    }
+  },
+
+  _computePlayingXIClientSide: function(team1, team2, venue) {
+    const d = this.data;
+    if (!d || !d.playing_xi_data) return null;
+
+    const { team_rosters, player_roles } = d.playing_xi_data;
+    const pvs = d.player_venue_stats || {};
+
+    function buildXI(teamName) {
+      const roster = team_rosters[teamName] || [];
+      if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
+
+      const scored = roster.map(pName => {
+        const role = player_roles[pName] || 'Batsman';
+        const venueList = pvs[pName] || [];
+        const vl = venue.toLowerCase();
+        const venueData = venueList.find(v => v.venue && v.venue.toLowerCase() === vl)
+          || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
+
+        let score = 0;
+        let stats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0, hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
+
+        if (venueData) {
+          stats = {
+            runs: venueData.runs || 0, innings: venueData.innings || 0,
+            avg: venueData.avg || 0, sr: venueData.sr || 0,
+            wickets: venueData.wickets || 0, economy: venueData.economy || 0,
+            hs: venueData.hs || 0, fours: venueData.fours || 0,
+            sixes: venueData.sixes || 0, fifties: venueData.fifties || 0,
+            hundreds: venueData.hundreds || 0, bowl_innings: venueData.bowl_innings || 0,
+          };
+        }
+
+        if (role === 'Batsman' || role === 'Wicketkeeper') {
+          score = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
+        } else if (role === 'Bowler') {
+          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
+          score = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
+        } else if (role === 'All-Rounder') {
+          const batScore = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
+          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
+          const bowlScore = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
+          score = batScore * 0.5 + bowlScore * 0.5;
+        }
+
+        return { name: pName, role, score, venue_stats: stats };
+      });
+
+      const batsmen = scored.filter(p => p.role === 'Batsman').sort((a, b) => b.score - a.score);
+      const keepers = scored.filter(p => p.role === 'Wicketkeeper').sort((a, b) => b.score - a.score);
+      const allrounders = scored.filter(p => p.role === 'All-Rounder').sort((a, b) => b.score - a.score);
+      const bowlers = scored.filter(p => p.role === 'Bowler').sort((a, b) => b.score - a.score);
+
+      const selected = [];
+      const needs = { Batsman: 4, Wicketkeeper: 1, 'All-Rounder': 1, Bowler: 5 };
+      const pools = { Batsman: batsmen, Wicketkeeper: keepers, 'All-Rounder': allrounders, Bowler: bowlers };
+
+      for (const [role, count] of Object.entries(needs)) {
+        const pool = pools[role];
+        const picked = pool.slice(0, count);
+        selected.push(...picked);
+        if (picked.length < count) {
+          const remaining = count - picked.length;
+          const pickedNames = new Set(selected.map(p => p.name));
+          const fallbacks = scored
+            .filter(p => !pickedNames.has(p.name))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, remaining)
+            .map(p => ({ ...p, role: role + ' (Fallback)' }));
+          selected.push(...fallbacks);
+        }
+      }
+
+      return { team: teamName, players: selected.slice(0, 11) };
+    }
+
+    return { venue, team1_xi: buildXI(team1), team2_xi: buildXI(team2) };
+  },
+
+  renderPlayingXIResults: function(result, container) {
+    if (!container) return;
+
+    const getTeamColor = (teamName) => {
+      const info = window.getTeamInfo ? window.getTeamInfo(teamName) : null;
+      return info ? info.primary : '#3A4D6B';
+    };
+
+    const getTeamShort = (teamName) => {
+      const info = window.getTeamInfo ? window.getTeamInfo(teamName) : null;
+      return info ? info.short : teamName.split(' ').map(w => w[0]).join('').substring(0, 3);
+    };
+
+    const getRoleBadgeClass = (role) => {
+      const r = role.toLowerCase().replace(/\s*\(fallback\)/, '');
+      if (r.includes('wicketkeeper')) return 'wicketkeeper';
+      if (r.includes('all-rounder')) return 'allrounder';
+      if (r.includes('bowler')) return 'bowler';
+      return 'batsman';
+    };
+
+    const getRoleDisplayName = (role) => {
+      const clean = role.replace(/\s*\(Fallback\)/, '');
+      if (clean === 'Wicketkeeper') return 'WK';
+      if (clean === 'All-Rounder') return 'AR';
+      if (clean === 'Bowler') return 'BWL';
+      return 'BAT';
+    };
+
+    const getInitials = (name) => {
+      const parts = name.split(' ');
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return name.substring(0, 2).toUpperCase();
+    };
+
+    const renderTeamPanel = (xi, teamColor) => {
+      if (!xi || !xi.players || xi.players.length === 0) {
+        return `<div class="xi-team-panel">
+          <div class="xi-empty-state">
+            <div class="xi-empty-state-icon">⚠️</div>
+            <div class="xi-empty-state-text">${xi.error || 'No players found for this team'}</div>
+          </div>
+        </div>`;
+      }
+
+      // Find best performer (highest score)
+      const bestIdx = xi.players.reduce((maxI, p, i, arr) => p.score > arr[maxI].score ? i : maxI, 0);
+
+      // Group players by role for display
+      const roleOrder = ['Batsman', 'Wicketkeeper', 'All-Rounder', 'Bowler'];
+      const grouped = {};
+      xi.players.forEach((p, idx) => {
+        const baseRole = p.role.replace(/\s*\(Fallback\)/, '');
+        if (!grouped[baseRole]) grouped[baseRole] = [];
+        grouped[baseRole].push({ ...p, originalIdx: idx });
+      });
+
+      let playerCards = '';
+      let playerNum = 1;
+
+      roleOrder.forEach(role => {
+        const players = grouped[role];
+        if (!players || players.length === 0) return;
+
+        const roleClass = getRoleBadgeClass(role);
+        const roleTitles = { 'Batsman': '🏏 BATSMEN', 'Wicketkeeper': '🧤 WICKETKEEPER', 'All-Rounder': '⚡ ALL-ROUNDER', 'Bowler': '🎯 BOWLERS' };
+
+        playerCards += `<div class="xi-role-group">
+          <div class="xi-role-group-title ${roleClass}">${roleTitles[role] || role}</div>`;
+
+        players.forEach(p => {
+          const isBest = p.originalIdx === bestIdx;
+          const s = p.venue_stats;
+          const isBatting = (role === 'Batsman' || role === 'Wicketkeeper' || role === 'All-Rounder');
+          const isBowling = (role === 'Bowler' || role === 'All-Rounder');
+
+          let statsHTML = '<div class="xi-player-venue-stats">';
+          if (isBatting) {
+            statsHTML += `
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.runs}</span><span class="xi-venue-stat-label">Runs</span></div>
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.avg}</span><span class="xi-venue-stat-label">Avg</span></div>
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.sr}</span><span class="xi-venue-stat-label">SR</span></div>
+            `;
+          }
+          if (isBowling) {
+            statsHTML += `
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.wickets}</span><span class="xi-venue-stat-label">Wkts</span></div>
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.economy}</span><span class="xi-venue-stat-label">Econ</span></div>
+            `;
+          }
+          statsHTML += '</div>';
+
+          playerCards += `
+            <div class="xi-player-card ${isBest ? 'best-performer' : ''}">
+              <span class="xi-player-number">${playerNum}</span>
+              <div class="xi-player-avatar" style="background:${teamColor}">${getInitials(p.name)}</div>
+              <div class="xi-player-info">
+                <div class="xi-player-name">${p.name}</div>
+                <span class="xi-role-badge ${roleClass}">${getRoleDisplayName(p.role)}</span>
+              </div>
+              ${statsHTML}
+            </div>`;
+          playerNum++;
+        });
+
+        playerCards += '</div>';
+      });
+
+      return `<div class="xi-team-panel">
+        <div class="xi-team-panel-header">
+          <div class="xi-team-badge" style="background:${teamColor}">${getTeamShort(xi.team)}</div>
+          <div>
+            <div class="xi-team-name">${xi.team}</div>
+            <div class="xi-venue-label">📍 ${result.venue}</div>
+          </div>
+        </div>
+        ${playerCards}
+      </div>`;
+    };
+
+    const team1Color = getTeamColor(result.team1_xi.team);
+    const team2Color = getTeamColor(result.team2_xi.team);
+
+    container.innerHTML = `
+      <div class="xi-results-container">
+        ${renderTeamPanel(result.team1_xi, team1Color)}
+        ${renderTeamPanel(result.team2_xi, team2Color)}
+      </div>
+    `;
   }
 };
 

@@ -59,6 +59,10 @@
           Venue Intelligence
         </a>
 
+        <a class="nav-item" data-target="playing-xi-section">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Best Playing XI
+        </a>
 
         <a class="nav-item" data-target="model-section">
           <svg viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3zM6 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"/></svg>
@@ -768,6 +772,56 @@
         </section>
 
 
+
+        <!-- ==================== SECTION 6: BEST PLAYING XI ==================== -->
+        <section id="playing-xi-section" class="app-section" style="display:none;">
+          <div class="section-header">
+            <div class="section-tag">Venue-Based Team Builder</div>
+            <h1 class="section-title">Best Playing XI Generator</h1>
+            <p class="section-desc">Select two IPL teams and a stadium to automatically generate the optimal Playing XI for each team based on their players' historical performance at that specific venue. Composition: 4 Batsmen + 1 Wicketkeeper + 1 All-Rounder + 5 Bowlers.</p>
+          </div>
+
+          <!-- Controls Card -->
+          <div class="card-panel glow-emerald" style="margin-bottom:24px; padding:24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+              <span style="font-size:22px;">🏆</span>
+              <h3 style="font-family:var(--font-title); font-size:18px; font-weight:800; color:var(--text-main); margin:0;">
+                Select Match Configuration
+              </h3>
+            </div>
+
+            <div class="xi-controls-grid">
+              <div class="xi-control-group">
+                <label style="color:var(--accent-teal);">🏏 Team 1</label>
+                <select id="xiTeam1Select"></select>
+              </div>
+              <div class="xi-control-group">
+                <label style="color:var(--accent-sky);">🏏 Team 2</label>
+                <select id="xiTeam2Select"></select>
+              </div>
+              <div class="xi-control-group">
+                <label style="color:var(--accent-amber);">🏟️ Stadium / Venue</label>
+                <select id="xiVenueSelect"></select>
+              </div>
+            </div>
+
+            <button class="xi-generate-btn" id="xiGenerateBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Generate Best Playing XI
+            </button>
+          </div>
+
+          <!-- Results Container -->
+          <div id="xiResultsOutput">
+            <div class="xi-empty-state">
+              <div class="xi-empty-state-icon">🏏</div>
+              <div class="xi-empty-state-text">Select two teams and a venue, then click <strong>"Generate Best Playing XI"</strong></div>
+              <div class="xi-empty-state-sub">The algorithm selects the 11 best performers for each team based on venue-specific stats</div>
+            </div>
+          </div>
+        </section>
 
 
 
