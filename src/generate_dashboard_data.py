@@ -234,6 +234,7 @@ def main():
         "availability_summary": new_analytics["availability"],
         "player_venue_stats":   new_analytics["player_venue"],
         "playing_xi_data":      new_analytics["playing_xi"],
+        "player_career_stats":  new_analytics["player_career"],
     }
 
     out_path = os.path.join(OUTPUTS_DIR, "dashboard_data.json")

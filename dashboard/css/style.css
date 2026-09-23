@@ -1973,6 +1973,41 @@ body {
   background: rgba(225, 29, 72, 0.1);
 }
 
+/* Data source badge (venue vs career) */
+.xi-player-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.xi-data-source {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.xi-data-source.venue {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.xi-data-source.career {
+  color: var(--accent-amber);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+/* Career fallback card style */
+.xi-player-card.career-fallback {
+  border-style: dashed;
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
 /* Venue stats strip */
 .xi-player-venue-stats {
   display: flex;
@@ -1982,7 +2017,7 @@ body {
 
 .xi-venue-stat {
   text-align: center;
-  min-width: 44px;
+  min-width: 38px;
 }
 
 .xi-venue-stat-value {
@@ -2089,12 +2124,25 @@ body {
   }
 
   .xi-player-venue-stats {
-    display: none;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .xi-venue-stat {
+    min-width: 32px;
+  }
+
+  .xi-venue-stat-value {
+    font-size: 11px;
   }
 
   .xi-player-card .xi-player-avatar {
     width: 30px;
     height: 30px;
     font-size: 10px;
+  }
+
+  .xi-player-card {
+    flex-wrap: wrap;
   }
 }

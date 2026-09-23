@@ -1659,45 +1659,93 @@ window.APP = {
 
     const { team_rosters, player_roles } = d.playing_xi_data;
     const pvs = d.player_venue_stats || {};
+    const pcs = d.player_career_stats || {};
+
+    // ── Scoring helpers (mirror server logic) ────────────────────────
+    function computeBatScore(s) {
+      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 30;
+      return (s.runs * 0.25) + (s.avg * 0.25) + (s.sr * 0.20)
+           + ((s.innings || 0) * 8 * 0.15) + (milestones * 0.15);
+    }
+
+    function computeBowlScore(s) {
+      const econScore = s.economy > 0 ? (12.0 / s.economy) * 15 : 0;
+      const impact = s.wickets > 0 && (s.bowl_innings || 0) > 0
+        ? (s.wickets / s.bowl_innings) * 20 : 0;
+      return (s.wickets * 12 * 0.35) + (econScore * 0.30)
+           + ((s.bowl_innings || 0) * 8 * 0.20) + (impact * 0.15);
+    }
+
+    function computeRoleScore(role, stats) {
+      if (role === 'Batsman' || role === 'Wicketkeeper') return computeBatScore(stats);
+      if (role === 'Bowler') return computeBowlScore(stats);
+      if (role === 'All-Rounder') {
+        const bat = computeBatScore(stats);
+        const bowl = computeBowlScore(stats);
+        const versatility = (stats.runs > 0 && stats.wickets > 0) ? 10 : 0;
+        return bat * 0.45 + bowl * 0.45 + versatility * 0.10;
+      }
+      return 0;
+    }
 
     function buildXI(teamName) {
       const roster = team_rosters[teamName] || [];
       if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
 
+      const vl = venue.toLowerCase();
+
       const scored = roster.map(pName => {
         const role = player_roles[pName] || 'Batsman';
         const venueList = pvs[pName] || [];
-        const vl = venue.toLowerCase();
         const venueData = venueList.find(v => v.venue && v.venue.toLowerCase() === vl)
           || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
 
+        const careerData = pcs[pName] || null;
+        const hasVenueData = !!venueData && (
+          (venueData.runs > 0 || venueData.innings > 0 || venueData.wickets > 0 || venueData.bowl_innings > 0)
+        );
+
+        const zeroStats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0,
+                            hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
+
+        const venueStats = hasVenueData ? {
+          runs: venueData.runs || 0, innings: venueData.innings || 0,
+          avg: venueData.avg || 0, sr: venueData.sr || 0,
+          wickets: venueData.wickets || 0, economy: venueData.economy || 0,
+          hs: venueData.hs || 0, fours: venueData.fours || 0,
+          sixes: venueData.sixes || 0, fifties: venueData.fifties || 0,
+          hundreds: venueData.hundreds || 0, bowl_innings: venueData.bowl_innings || 0,
+        } : { ...zeroStats };
+
+        const careerStats = careerData ? {
+          runs: careerData.runs || 0, innings: careerData.innings || 0,
+          avg: careerData.avg || 0, sr: careerData.sr || 0,
+          wickets: careerData.wickets || 0, economy: careerData.economy || 0,
+          hs: careerData.hs || 0, fours: careerData.fours || 0,
+          sixes: careerData.sixes || 0, fifties: careerData.fifties || 0,
+          hundreds: careerData.hundreds || 0, bowl_innings: careerData.bowl_innings || 0,
+          venues_played: careerData.venues_played || 0,
+        } : { ...zeroStats, venues_played: 0 };
+
         let score = 0;
-        let stats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0, hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
-
-        if (venueData) {
-          stats = {
-            runs: venueData.runs || 0, innings: venueData.innings || 0,
-            avg: venueData.avg || 0, sr: venueData.sr || 0,
-            wickets: venueData.wickets || 0, economy: venueData.economy || 0,
-            hs: venueData.hs || 0, fours: venueData.fours || 0,
-            sixes: venueData.sixes || 0, fifties: venueData.fifties || 0,
-            hundreds: venueData.hundreds || 0, bowl_innings: venueData.bowl_innings || 0,
-          };
+        if (hasVenueData) {
+          const venueScore = computeRoleScore(role, venueStats);
+          const careerScore = computeRoleScore(role, careerStats);
+          const venueInnings = Math.max(venueStats.innings, venueStats.bowl_innings);
+          const experienceBonus = Math.min(venueInnings * 2, 20);
+          score = venueScore * 0.70 + careerScore * 0.30 + experienceBonus;
+        } else if (careerData) {
+          score = computeRoleScore(role, careerStats) * 0.85;
         }
 
-        if (role === 'Batsman' || role === 'Wicketkeeper') {
-          score = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
-        } else if (role === 'Bowler') {
-          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
-          score = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
-        } else if (role === 'All-Rounder') {
-          const batScore = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
-          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
-          const bowlScore = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
-          score = batScore * 0.5 + bowlScore * 0.5;
-        }
-
-        return { name: pName, role, score, venue_stats: stats };
+        return {
+          name: pName, role,
+          score: Math.round(score * 10) / 10,
+          venue_stats: venueStats,
+          career_stats: careerStats,
+          has_venue_data: hasVenueData,
+          matches_at_venue: hasVenueData ? Math.max(venueStats.innings, venueStats.bowl_innings) : 0,
+        };
       });
 
       const batsmen = scored.filter(p => p.role === 'Batsman').sort((a, b) => b.score - a.score);
@@ -1803,20 +1851,34 @@ window.APP = {
 
         players.forEach(p => {
           const isBest = p.originalIdx === bestIdx;
-          const s = p.venue_stats;
+          const hasVenue = p.has_venue_data !== undefined ? p.has_venue_data : true;
+          const s = hasVenue ? p.venue_stats : (p.career_stats || p.venue_stats);
           const isBatting = (role === 'Batsman' || role === 'Wicketkeeper' || role === 'All-Rounder');
           const isBowling = (role === 'Bowler' || role === 'All-Rounder');
+
+          // Data source indicator
+          const dataSourceBadge = hasVenue
+            ? `<span class="xi-data-source venue" title="Stats from this venue">📍 Venue Stats (${p.matches_at_venue || s.innings || 0} inn)</span>`
+            : `<span class="xi-data-source career" title="No venue data — showing career stats">📊 Career Stats</span>`;
 
           let statsHTML = '<div class="xi-player-venue-stats">';
           if (isBatting) {
             statsHTML += `
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.innings || 0}</span><span class="xi-venue-stat-label">Inn</span></div>
               <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.runs}</span><span class="xi-venue-stat-label">Runs</span></div>
               <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.avg}</span><span class="xi-venue-stat-label">Avg</span></div>
               <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.sr}</span><span class="xi-venue-stat-label">SR</span></div>
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.hs || 0}</span><span class="xi-venue-stat-label">HS</span></div>
             `;
+            if ((s.fifties || 0) > 0 || (s.hundreds || 0) > 0) {
+              statsHTML += `
+                <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.fifties || 0}/${s.hundreds || 0}</span><span class="xi-venue-stat-label">50s/100s</span></div>
+              `;
+            }
           }
           if (isBowling) {
             statsHTML += `
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.bowl_innings || 0}</span><span class="xi-venue-stat-label">B.Inn</span></div>
               <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.wickets}</span><span class="xi-venue-stat-label">Wkts</span></div>
               <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.economy}</span><span class="xi-venue-stat-label">Econ</span></div>
             `;
@@ -1824,12 +1886,15 @@ window.APP = {
           statsHTML += '</div>';
 
           playerCards += `
-            <div class="xi-player-card ${isBest ? 'best-performer' : ''}">
+            <div class="xi-player-card ${isBest ? 'best-performer' : ''} ${!hasVenue ? 'career-fallback' : ''}">
               <span class="xi-player-number">${playerNum}</span>
               <div class="xi-player-avatar" style="background:${teamColor}">${getInitials(p.name)}</div>
               <div class="xi-player-info">
                 <div class="xi-player-name">${p.name}</div>
-                <span class="xi-role-badge ${roleClass}">${getRoleDisplayName(p.role)}</span>
+                <div class="xi-player-meta">
+                  <span class="xi-role-badge ${roleClass}">${getRoleDisplayName(p.role)}</span>
+                  ${dataSourceBadge}
+                </div>
               </div>
               ${statsHTML}
             </div>`;

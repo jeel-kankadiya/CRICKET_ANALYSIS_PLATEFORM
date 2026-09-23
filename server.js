@@ -129,53 +129,107 @@ const server = http.createServer((req, res) => {
 
     const { team_rosters, player_roles } = data.playing_xi_data;
     const pvs = data.player_venue_stats;
+    const pcs = data.player_career_stats || {};
+
+    // ── Scoring helpers ──────────────────────────────────────────────
+    function computeBatScore(s) {
+      // Weighted: runs (25%), avg (25%), SR (20%), innings experience (15%), milestones (15%)
+      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 30;
+      return (s.runs * 0.25) + (s.avg * 0.25) + (s.sr * 0.20)
+           + ((s.innings || 0) * 8 * 0.15) + (milestones * 0.15);
+    }
+
+    function computeBowlScore(s) {
+      // Weighted: wickets (35%), economy (30%), experience (20%), impact (15%)
+      const econScore = s.economy > 0 ? (12.0 / s.economy) * 15 : 0;
+      const impact = s.wickets > 0 && (s.bowl_innings || 0) > 0
+        ? (s.wickets / s.bowl_innings) * 20 : 0;
+      return (s.wickets * 12 * 0.35) + (econScore * 0.30)
+           + ((s.bowl_innings || 0) * 8 * 0.20) + (impact * 0.15);
+    }
+
+    function computeScore(role, stats) {
+      if (role === 'Batsman' || role === 'Wicketkeeper') {
+        return computeBatScore(stats);
+      } else if (role === 'Bowler') {
+        return computeBowlScore(stats);
+      } else if (role === 'All-Rounder') {
+        const batScore = computeBatScore(stats);
+        const bowlScore = computeBowlScore(stats);
+        // Versatility bonus: reward players contributing in both disciplines
+        const versatility = (stats.runs > 0 && stats.wickets > 0) ? 10 : 0;
+        return batScore * 0.45 + bowlScore * 0.45 + versatility * 0.10;
+      }
+      return 0;
+    }
 
     function buildXI(teamName) {
       const roster = team_rosters[teamName] || [];
       if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
 
-      // Score each player for this venue
+      const vl = venue.toLowerCase();
+
+      // Score each player using venue-specific stats with career fallback
       const scored = roster.map(pName => {
         const role = player_roles[pName] || 'Batsman';
         const venueList = pvs[pName] || [];
-        const vl = venue.toLowerCase();
         const venueData = venueList.find(v => v.venue && v.venue.toLowerCase() === vl)
                        || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
 
+        const careerData = pcs[pName] || null;
+        const hasVenueData = !!venueData && (
+          (venueData.runs > 0 || venueData.innings > 0 || venueData.wickets > 0 || venueData.bowl_innings > 0)
+        );
+
+        // Build stats objects
+        const zeroStats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0,
+                            hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
+
+        const venueStats = hasVenueData ? {
+          runs: venueData.runs || 0, innings: venueData.innings || 0,
+          avg: venueData.avg || 0, sr: venueData.sr || 0,
+          wickets: venueData.wickets || 0, economy: venueData.economy || 0,
+          hs: venueData.hs || 0, fours: venueData.fours || 0,
+          sixes: venueData.sixes || 0, fifties: venueData.fifties || 0,
+          hundreds: venueData.hundreds || 0, bowl_innings: venueData.bowl_innings || 0,
+        } : { ...zeroStats };
+
+        const careerStats = careerData ? {
+          runs: careerData.runs || 0, innings: careerData.innings || 0,
+          avg: careerData.avg || 0, sr: careerData.sr || 0,
+          wickets: careerData.wickets || 0, economy: careerData.economy || 0,
+          hs: careerData.hs || 0, fours: careerData.fours || 0,
+          sixes: careerData.sixes || 0, fifties: careerData.fifties || 0,
+          hundreds: careerData.hundreds || 0, bowl_innings: careerData.bowl_innings || 0,
+          venues_played: careerData.venues_played || 0,
+        } : { ...zeroStats, venues_played: 0 };
+
         let score = 0;
-        let stats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0, hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
 
-        if (venueData) {
-          stats = {
-            runs: venueData.runs || 0,
-            innings: venueData.innings || 0,
-            avg: venueData.avg || 0,
-            sr: venueData.sr || 0,
-            wickets: venueData.wickets || 0,
-            economy: venueData.economy || 0,
-            hs: venueData.hs || 0,
-            fours: venueData.fours || 0,
-            sixes: venueData.sixes || 0,
-            fifties: venueData.fifties || 0,
-            hundreds: venueData.hundreds || 0,
-            bowl_innings: venueData.bowl_innings || 0,
-          };
+        if (hasVenueData) {
+          // Venue data exists: 70% venue + 30% career
+          const venueScore = computeScore(role, venueStats);
+          const careerScore = computeScore(role, careerStats);
+          // Venue experience bonus: more innings at venue = more reliable data
+          const venueInnings = Math.max(venueStats.innings, venueStats.bowl_innings);
+          const experienceBonus = Math.min(venueInnings * 2, 20); // cap at 20 bonus points
+          score = venueScore * 0.70 + careerScore * 0.30 + experienceBonus;
+        } else if (careerData) {
+          // No venue data but has career stats: use career with a small penalty
+          const careerScore = computeScore(role, careerStats);
+          score = careerScore * 0.85; // 15% penalty for lack of venue experience
         }
+        // else: no data at all => score stays 0
 
-        // Role-based scoring
-        if (role === 'Batsman' || role === 'Wicketkeeper') {
-          score = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
-        } else if (role === 'Bowler') {
-          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
-          score = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
-        } else if (role === 'All-Rounder') {
-          const batScore = (stats.runs * 0.40) + (stats.avg * 0.30) + (stats.sr * 0.30);
-          const econScore = stats.economy > 0 ? (15.0 / stats.economy) * 10 : 0;
-          const bowlScore = (stats.wickets * 10 * 0.40) + (econScore * 0.35) + (stats.bowl_innings * 5 * 0.25);
-          score = batScore * 0.5 + bowlScore * 0.5;
-        }
-
-        return { name: pName, role, score, venue_stats: stats };
+        return {
+          name: pName,
+          role,
+          score: Math.round(score * 10) / 10,
+          venue_stats: venueStats,
+          career_stats: careerStats,
+          has_venue_data: hasVenueData,
+          matches_at_venue: hasVenueData ? Math.max(venueStats.innings, venueStats.bowl_innings) : 0,
+        };
       });
 
       // Group by role

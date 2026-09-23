@@ -615,19 +615,108 @@ def build_playing_xi_data() -> dict:
     }
 
 
+def build_player_career_stats(player_venue_summary: dict) -> dict:
+    """
+    Aggregate each player's per-venue stats into overall IPL career stats.
+
+    This provides a reliable fallback for the Playing XI generator when
+    a player has not played at the selected venue.
+
+    Parameters:
+        player_venue_summary (dict): Output of player_venue_analytics().
+            {player_name: [{venue, runs, innings, balls, avg, sr, ...}, ...]}
+
+    Returns:
+        dict: {player_name: {runs, innings, avg, sr, hs, fifties, hundreds,
+               fours, sixes, wickets, bowl_innings, economy, venues_played}}
+    """
+    career_stats = {}
+
+    for player, venues in player_venue_summary.items():
+        if not venues:
+            continue
+
+        total_runs = sum(v.get('runs', 0) for v in venues)
+        total_innings = sum(v.get('innings', 0) for v in venues)
+        total_balls = sum(v.get('balls', 0) for v in venues)
+        total_fours = sum(v.get('fours', 0) for v in venues)
+        total_sixes = sum(v.get('sixes', 0) for v in venues)
+        total_fifties = sum(v.get('fifties', 0) for v in venues)
+        total_hundreds = sum(v.get('hundreds', 0) for v in venues)
+        total_wickets = sum(v.get('wickets', 0) for v in venues)
+        total_bowl_innings = sum(v.get('bowl_innings', 0) for v in venues)
+        hs = max((v.get('hs', 0) for v in venues), default=0)
+
+        # Compute career batting average: runs / dismissals
+        # We need to derive dismissals from avg: outs = runs / avg (when avg > 0)
+        total_outs = 0
+        for v in venues:
+            v_runs = v.get('runs', 0)
+            v_avg = v.get('avg', 0)
+            v_innings = v.get('innings', 0)
+            if v_avg > 0 and v_runs > 0:
+                total_outs += round(v_runs / v_avg)
+            elif v_innings > 0 and v_runs == 0:
+                total_outs += v_innings  # got out for 0 each time
+
+        career_avg = round(total_runs / total_outs, 1) if total_outs > 0 else (
+            float(total_runs) if total_runs > 0 else 0.0
+        )
+        career_sr = round((total_runs / total_balls) * 100, 1) if total_balls > 0 else 0.0
+
+        # Career bowling economy: total_bowl_runs / (total_bowl_balls / 6)
+        total_bowl_runs = 0
+        total_bowl_balls = 0
+        for v in venues:
+            v_econ = v.get('economy', 0)
+            v_bowl_inn = v.get('bowl_innings', 0)
+            # Approximate: we don't have raw bowl_balls/bowl_runs per venue,
+            # but we can reconstruct from economy & bowl_innings (rough estimate)
+            # economy = runs / overs => runs = economy * overs
+            # We'll use a weighted average approach instead
+            if v_econ > 0 and v_bowl_inn > 0:
+                # Estimate ~4 overs per bowling innings as typical IPL contribution
+                est_overs = v_bowl_inn * 4.0
+                total_bowl_runs += v_econ * est_overs
+                total_bowl_balls += int(est_overs * 6)
+
+        career_economy = round(total_bowl_runs / (total_bowl_balls / 6.0), 2) if total_bowl_balls >= 6 else 0.0
+
+        career_stats[player] = {
+            'runs': total_runs,
+            'innings': total_innings,
+            'avg': career_avg,
+            'sr': career_sr,
+            'hs': hs,
+            'fifties': total_fifties,
+            'hundreds': total_hundreds,
+            'fours': total_fours,
+            'sixes': total_sixes,
+            'wickets': total_wickets,
+            'bowl_innings': total_bowl_innings,
+            'economy': career_economy,
+            'venues_played': len(venues),
+        }
+
+    return career_stats
+
+
 # ─────────────────────────────────────────────────────────
 # MAIN AGGREGATOR
 # ─────────────────────────────────────────────────────────
 
 def build_all_analytics() -> dict:
+    player_venue = player_venue_analytics()
+    player_career = build_player_career_stats(player_venue)
     return {
-        "auction":      auction_analytics(),
-        "venue_intel":  venue_intelligence(),
-        "points_table": points_table_analytics(),
-        "player_trends":player_season_trends(),
-        "availability": availability_analytics(),
-        "player_venue": player_venue_analytics(),
-        "playing_xi":   build_playing_xi_data(),
+        "auction":        auction_analytics(),
+        "venue_intel":    venue_intelligence(),
+        "points_table":   points_table_analytics(),
+        "player_trends":  player_season_trends(),
+        "availability":   availability_analytics(),
+        "player_venue":   player_venue,
+        "playing_xi":     build_playing_xi_data(),
+        "player_career":  player_career,
     }
 
 
