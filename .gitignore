@@ -29,3 +29,6 @@ data/processed/
 .env.development.local
 .env.test.local
 .env.production.local
+
+catboost_info/
+

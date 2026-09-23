@@ -206,6 +206,20 @@ def main():
         cv_results = json.load(f)
     feat_imp = pd.read_csv(os.path.join(OUTPUTS_DIR, "feature_importance.csv")).to_dict(orient="records")
 
+    model_metrics_v2, cv_results_v2, live_metrics = {}, {}, {}
+    v2_metrics_path = os.path.join(OUTPUTS_DIR, "model_metrics_v2.json")
+    if os.path.exists(v2_metrics_path):
+        with open(v2_metrics_path) as f:
+            model_metrics_v2 = json.load(f)
+    v2_cv_path = os.path.join(OUTPUTS_DIR, "cv_results_v2.json")
+    if os.path.exists(v2_cv_path):
+        with open(v2_cv_path) as f:
+            cv_results_v2 = json.load(f)
+    live_path = os.path.join(OUTPUTS_DIR, "live_model_metrics.json")
+    if os.path.exists(live_path):
+        with open(live_path) as f:
+            live_metrics = json.load(f)
+
     current_teams = sorted([t for t in elo.keys()])
 
     print("  Building new-dataset analytics (auction / venue / points / trends / availability)...")
@@ -227,6 +241,9 @@ def main():
         "model_metrics": model_metrics,
         "cv_results": cv_results,
         "feature_importance": feat_imp,
+        "model_metrics_v2": model_metrics_v2,
+        "cv_results_v2": cv_results_v2,
+        "live_model_metrics": live_metrics,
         "auction_trends":       new_analytics["auction"],
         "venue_intelligence":   new_analytics["venue_intel"],
         "points_table_history": new_analytics["points_table"],

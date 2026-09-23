@@ -56,6 +56,7 @@ LIVE_FEATURE_COLS = [
     "over_completed", "balls_remaining", "current_score", "wickets_in_hand",
     "current_run_rate", "target", "runs_needed", "required_run_rate",
     "rrr_minus_crr", "is_powerplay", "is_death_overs", "pre_match_elo_diff",
+    "runs_last_3_overs", "wickets_last_3_overs", "req_runs_per_wicket", "chase_pressure_index"
 ]
 
 
@@ -84,8 +85,6 @@ def build_live_feature_matrix() -> pd.DataFrame:
     matches = load_matches()
     matches = matches[matches["is_decisive"]].copy()
 
-    # Pull elo_diff (team1 - team2) computed by the existing pipeline so the
-    # live model retains pre-match team-strength context.
     from elo_rating import compute_elo_ratings
     matches, _ = compute_elo_ratings(matches)
 
@@ -96,7 +95,6 @@ def build_live_feature_matrix() -> pd.DataFrame:
     balls = balls.merge(match_ctx, on="match_id", how="inner")
     balls = balls.sort_values(["match_id", "innings", "over_number", "ball_number"])
 
-    # Legal deliveries only count toward the 6-ball over (wides/no-balls don't).
     balls["is_legal_ball"] = ~(balls["is_wide_ball"] | balls["is_no_ball"])
 
     grp_cols = ["match_id", "innings"]
@@ -104,22 +102,16 @@ def build_live_feature_matrix() -> pd.DataFrame:
     balls["cum_wickets"] = balls.groupby(grp_cols)["is_wicket"].cumsum()
     balls["legal_ball_count"] = balls.groupby(grp_cols)["is_legal_ball"].cumsum()
 
-    # First-innings final score -> the target the 2nd innings is chasing.
     innings1_final = (
         balls[balls["innings"] == 1]
         .groupby("match_id")["cum_runs"].max()
         .rename("innings1_total")
     )
 
-    # Snapshot at the END of each completed over (legal_ball_count is a
-    # multiple of 6): this reduces ~140K deliveries/innings to ~20
-    # snapshots/innings and matches how commentators report "score after over N".
     innings2 = balls[balls["innings"] == 2].copy()
     innings2 = innings2[
         (innings2["legal_ball_count"] % BALLS_PER_OVER == 0) & (innings2["legal_ball_count"] > 0)
     ]
-    # If multiple rows share the same legal_ball_count (extras on the 6th
-    # ball), keep the LAST one so cum_runs/cum_wickets reflect the full over.
     innings2 = innings2.sort_values(["match_id", "legal_ball_count"])
     innings2 = innings2.groupby(["match_id", "legal_ball_count"], as_index=False).last()
 
@@ -129,6 +121,18 @@ def build_live_feature_matrix() -> pd.DataFrame:
     innings2["balls_remaining"] = (20 * BALLS_PER_OVER) - innings2["legal_ball_count"]
     innings2["current_score"] = innings2["cum_runs"]
     innings2["wickets_in_hand"] = 10 - innings2["cum_wickets"]
+
+    # Compute rolling 3-over (last 18 balls) momentum per match
+    innings2["runs_last_3_overs"] = (
+        innings2.groupby("match_id")["current_score"]
+        .diff(3)
+        .fillna(innings2["current_score"])
+    )
+    innings2["wickets_last_3_overs"] = (
+        innings2.groupby("match_id")["cum_wickets"]
+        .diff(3)
+        .fillna(innings2["cum_wickets"])
+    )
 
     overs_played = innings2["legal_ball_count"] / BALLS_PER_OVER
     innings2["current_run_rate"] = innings2["current_score"] / overs_played.replace(0, np.nan)
@@ -141,27 +145,25 @@ def build_live_feature_matrix() -> pd.DataFrame:
     innings2["required_run_rate"] = (
         innings2["runs_needed"] / overs_remaining.replace(0, np.nan)
     )
-    # Match already effectively decided (last ball, or already chased down):
-    # cap RRR rather than leaving inf/NaN, so the model sees "very high pressure"
-    # instead of a broken value.
     innings2["required_run_rate"] = innings2["required_run_rate"].fillna(
         innings2["runs_needed"].clip(lower=0) * 6.0
     ).clip(upper=36.0)
 
     innings2["rrr_minus_crr"] = innings2["required_run_rate"] - innings2["current_run_rate"]
+    innings2["req_runs_per_wicket"] = innings2["runs_needed"] / (innings2["wickets_in_hand"].clip(lower=1))
+    innings2["chase_pressure_index"] = (
+        (innings2["required_run_rate"] ** 2) / (innings2["current_run_rate"] + 0.1)
+    ) * (11 - innings2["wickets_in_hand"])
 
     innings2["is_powerplay"] = (innings2["over_completed"] <= 6).astype(int)
     innings2["is_death_overs"] = (innings2["over_completed"] >= 16).astype(int)
 
-    # Pre-match elo_diff, reoriented to be from the CHASING team's perspective
-    # (team_batting_name), not fixed to team1/team2.
     innings2["pre_match_elo_diff"] = np.where(
         innings2["team_batting_name"] == innings2["team1_name"],
         innings2["team1_elo_pre"] - innings2["team2_elo_pre"],
         innings2["team2_elo_pre"] - innings2["team1_elo_pre"],
     )
 
-    # Label: did the chasing team (team_batting_name) go on to win?
     winner_name = np.where(innings2["team1_won"] == 1, innings2["team1_name"], innings2["team2_name"])
     innings2["chasing_team_won"] = (innings2["team_batting_name"] == winner_name).astype(int)
 

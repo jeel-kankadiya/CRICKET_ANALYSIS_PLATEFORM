@@ -1,4 +1,4 @@
-﻿"""
+"""
 elo_rating.py
 --------------
 PURPOSE:
@@ -40,39 +40,35 @@ def expected_score(rating_a: float, rating_b: float) -> float:
     return 1.0 / (1.0 + 10 ** ((rating_b - rating_a) / 400))
 
 
-def compute_elo_ratings(matches: pd.DataFrame):
+def compute_elo_ratings(matches: pd.DataFrame, mean_reversion_rate: float = 0.25):
     """
     Walks through all matches in strict chronological order and calculates
     pre-match Elo ratings for both teams before updating ratings post-match.
 
-    Why Pre-Match Elo?
-        Recording pre-match Elo ensures no target leakage when using Elo as an
-        explanatory feature in downstream Machine Learning win-prediction models.
-
-    Processing Steps:
-        1. Initialize all teams with baseline rating (1500).
-        2. Iterate over matches sorted by date.
-        3. Record pre-match ratings for team1 and team2.
-        4. If match is decisive (not a tie/no-result), compute expected outcome and
-           update both teams' ratings using K_FACTOR.
-        5. Calculate rating difference: (team1_elo_pre - team2_elo_pre).
-
-    Parameters:
-        matches (pd.DataFrame): Sorted matches DataFrame from data_loader.load_matches().
+    Enhancements for maximum accuracy:
+        1. Season-to-Season Mean Reversion: At the start of a new season, ratings
+           are pulled 25% back toward 1500 to account for player auctions/roster changes.
+        2. Margin-of-Victory Scaling: Dominant wins (large run/wicket margin) adjust
+           ratings slightly more than 1-run / 1-wicket nail-biters.
 
     Returns:
         tuple: (matches_df, final_ratings_dict)
-            - matches_df (pd.DataFrame): Matches copy with added 'team1_elo_pre',
-              'team2_elo_pre', and 'elo_diff' columns.
-            - final_ratings_dict (dict): Latest Elo ratings for all active franchises.
     """
-    # Use defaultdict so any newly encountered team automatically starts at 1500
     ratings = defaultdict(lambda: BASE_RATING)
     team1_elo_pre = []
     team2_elo_pre = []
+    current_season = None
 
     for _, row in matches.iterrows():
         t1, t2 = row["team1_name"], row["team2_name"]
+        season = str(row.get("season", ""))
+
+        # Season transition: apply mean reversion to all active team ratings
+        if current_season is not None and season != current_season:
+            for team in list(ratings.keys()):
+                ratings[team] = ratings[team] * (1.0 - mean_reversion_rate) + BASE_RATING * mean_reversion_rate
+        current_season = season
+
         r1, r2 = ratings[t1], ratings[t2]
         
         # Record pre-match ratings BEFORE applying match outcome
@@ -91,9 +87,21 @@ def compute_elo_ratings(matches: pd.DataFrame):
         actual1 = 1 if row["team1_won"] == 1 else 0
         actual2 = 1 - actual1
 
+        # Margin-of-victory multiplier
+        runs_m = row.get("win_by_runs", 0)
+        wkts_m = row.get("win_by_wickets", 0)
+        margin_scale = 1.0
+        if not pd.isna(runs_m) and runs_m > 0:
+            margin_scale = np.log(1.0 + runs_m / 10.0) + 0.8
+        elif not pd.isna(wkts_m) and wkts_m > 0:
+            margin_scale = np.log(1.0 + wkts_m / 2.0) + 0.8
+        margin_scale = float(np.clip(margin_scale, 0.8, 2.0))
+
+        k_eff = K_FACTOR * margin_scale
+
         # Update Elo ratings based on outcome error
-        ratings[t1] = r1 + K_FACTOR * (actual1 - exp1)
-        ratings[t2] = r2 + K_FACTOR * (actual2 - exp2)
+        ratings[t1] = r1 + k_eff * (actual1 - exp1)
+        ratings[t2] = r2 + k_eff * (actual2 - exp2)
 
     # Attach calculated features to DataFrame
     matches = matches.copy()

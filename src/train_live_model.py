@@ -2,21 +2,12 @@
 train_live_model.py
 ---------------------
 PURPOSE:
-    Trains the IN-MATCH ("live") win-probability model using the over-by-over
-    2nd-innings snapshots from live_features.py. This is expected to
-    outperform every pre-match model in outputs/model_metrics.json /
-    model_metrics_v2.json by a wide margin, because live game-state (how far
-    behind/ahead of the required run rate the chasing team is, wickets in
-    hand) is a vastly stronger signal than any pre-match context can be in a
-    sport this volatile.
-
-VALIDATION STRATEGY:
-    Chronological match-level split (NOT row-level) — all snapshots from a
-    given match go entirely into either train or test, so the model is never
-    tested on a different over of a match it partially trained on.
+    Trains the ACCURACY-BOOSTED IN-MATCH ("live") win-probability model using CatBoost, LightGBM,
+    XGBoost, HistGradientBoosting, and a Stacking Meta-Ensemble on over-by-over
+    2nd-innings snapshots from live_features.py.
 
 OUTPUTS:
-    models/live_win_probability.pkl       -- fitted HistGradientBoosting model
+    models/live_win_probability.pkl       -- fitted live win-probability ensemble model
     outputs/live_model_metrics.json       -- overall + phase-of-innings metrics
     outputs/live_feature_importance.csv
 """
@@ -27,9 +18,14 @@ import numpy as np
 import pandas as pd
 import joblib
 
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, GradientBoostingClassifier, VotingClassifier, StackingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import accuracy_score, roc_auc_score, log_loss, brier_score_loss
+
+import lightgbm as lgb
+import xgboost as xgb
+from catboost import CatBoostClassifier
 
 from live_features import build_live_feature_matrix, LIVE_FEATURE_COLS
 
@@ -42,16 +38,9 @@ os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 def match_level_split(df: pd.DataFrame, test_size: float = 0.2):
     """
-    Splits by MATCH, chronologically, so every over-by-over row from a given
-    match stays together in either train or test. Ordering matches by their
-    earliest snapshot keeps the split time-consistent with the rest of the
-    pipeline (train on older matches, test on the most recent ones).
+    Splits by MATCH, chronologically, so all over-by-over rows from a given
+    match stay together in either train or test.
     """
-    match_order = df.groupby("match_id")["over_completed"].count().index  # arbitrary stable order
-    # Use match_id as a proxy for chronology isn't reliable on its own, so
-    # instead order by the row order already present (build_live_feature_matrix
-    # preserves ball_by_ball_data's chronological match ordering via match_id
-    # merge order); safer to sort by match_id's first appearance index.
     first_seen = df.reset_index().groupby("match_id")["index"].min().sort_values()
     ordered_match_ids = first_seen.index.tolist()
 
@@ -65,11 +54,7 @@ def match_level_split(df: pd.DataFrame, test_size: float = 0.2):
 
 
 def evaluate_by_phase(model, df: pd.DataFrame):
-    """
-    Reports accuracy/ROC-AUC broken out by innings phase (early / middle /
-    death overs), since a live model's usefulness is precisely that it should
-    get MORE confident as the chase progresses — this confirms that's happening.
-    """
+    """Reports accuracy/ROC-AUC broken out by innings phase."""
     X = df[LIVE_FEATURE_COLS]
     proba = model.predict_proba(X)[:, 1]
     preds = model.predict(X)
@@ -107,9 +92,21 @@ def main():
     X_train, y_train = train[LIVE_FEATURE_COLS], train["chasing_team_won"]
     X_test, y_test = test[LIVE_FEATURE_COLS], test["chasing_team_won"]
 
-    model = HistGradientBoostingClassifier(
-        max_iter=300, max_depth=5, learning_rate=0.05,
-        l2_regularization=1.0, random_state=42,
+    cat_m = CatBoostClassifier(iterations=300, depth=4, learning_rate=0.03, random_seed=42, verbose=0)
+    lgbm = lgb.LGBMClassifier(n_estimators=300, max_depth=5, learning_rate=0.03, random_state=42, verbose=-1)
+    xgb_m = xgb.XGBClassifier(n_estimators=300, max_depth=4, learning_rate=0.03, eval_metric="logloss", random_state=42)
+    hgb = HistGradientBoostingClassifier(max_iter=300, max_depth=5, learning_rate=0.03, l2_regularization=1.0, random_state=42)
+
+    # Stacking Classifier with Logistic Regression Meta-Learner
+    model = StackingClassifier(
+        estimators=[
+            ("cat", cat_m),
+            ("lgbm", lgbm),
+            ("xgb", xgb_m),
+            ("hgb", hgb)
+        ],
+        final_estimator=LogisticRegression(C=0.5),
+        cv=5
     )
     model.fit(X_train, y_train)
 
@@ -122,7 +119,7 @@ def main():
         "log_loss": float(log_loss(y_test, proba)),
         "brier_score": float(brier_score_loss(y_test, proba)),
     }
-    print("\n=== Live Win-Probability Model (overall, held-out matches) ===")
+    print("\n=== Live Win-Probability Stacking Ensemble (overall, held-out matches) ===")
     for k, v in overall_metrics.items():
         print(f"  {k:12s}: {v:.4f}")
 
@@ -131,9 +128,7 @@ def main():
     for phase, m in phase_metrics.items():
         print(f"  {phase:22s} n={m['n_snapshots']:5d}  accuracy={m['accuracy']:.4f}  roc_auc={m['roc_auc']:.4f}")
 
-    # Permutation importance (HistGradientBoostingClassifier has no native
-    # .feature_importances_, unlike RandomForest/GradientBoosting).
-    perm = permutation_importance(model, X_test, y_test, n_repeats=10, random_state=42, n_jobs=-1)
+    perm = permutation_importance(model, X_test, y_test, n_repeats=5, random_state=42, n_jobs=1)
     importance_df = pd.DataFrame({
         "feature": LIVE_FEATURE_COLS,
         "importance_mean": perm.importances_mean,
