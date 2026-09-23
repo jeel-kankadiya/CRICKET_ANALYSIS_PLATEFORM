@@ -1663,17 +1663,19 @@ window.APP = {
 
     // ── Scoring helpers (mirror server logic) ────────────────────────
     function computeBatScore(s) {
-      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 30;
-      return (s.runs * 0.25) + (s.avg * 0.25) + (s.sr * 0.20)
-           + ((s.innings || 0) * 8 * 0.15) + (milestones * 0.15);
+      if (!s || (s.runs <= 0 && s.innings <= 0)) return 0;
+      const cappedAvg = Math.min(s.avg || 0, 65);
+      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 35;
+      return (s.runs * 0.25) + (cappedAvg * 0.25) + ((s.sr || 0) * 0.20)
+           + ((s.innings || 0) * 5 * 0.15) + (milestones * 0.15);
     }
 
     function computeBowlScore(s) {
-      const econScore = s.economy > 0 ? (12.0 / s.economy) * 15 : 0;
-      const impact = s.wickets > 0 && (s.bowl_innings || 0) > 0
-        ? (s.wickets / s.bowl_innings) * 20 : 0;
+      if (!s || s.wickets <= 0) return 0; // STRICT ZERO WICKETS EXCLUSION
+      const econScore = (s.economy > 0 && s.economy <= 15) ? (12.0 / s.economy) * 15 : 0;
+      const impact = (s.bowl_innings || 0) > 0 ? (s.wickets / s.bowl_innings) * 20 : 0;
       return (s.wickets * 12 * 0.35) + (econScore * 0.30)
-           + ((s.bowl_innings || 0) * 8 * 0.20) + (impact * 0.15);
+           + ((s.bowl_innings || 0) * 5 * 0.20) + (impact * 0.15);
     }
 
     function computeRoleScore(role, stats) {
@@ -1689,7 +1691,15 @@ window.APP = {
     }
 
     function buildXI(teamName) {
-      const roster = team_rosters[teamName] || [];
+      let roster = team_rosters[teamName] || [];
+      const isAllTime = teamName.includes('All-Time') || teamName === 'All-Time XI';
+
+      if (isAllTime) {
+        const allPlayersSet = new Set();
+        Object.values(team_rosters).forEach(rList => rList.forEach(p => allPlayersSet.add(p)));
+        roster = Array.from(allPlayersSet);
+      }
+
       if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
 
       const vl = venue.toLowerCase();
@@ -1701,7 +1711,7 @@ window.APP = {
           || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
 
         const careerData = pcs[pName] || null;
-        const hasVenueData = !!venueData && (
+        const hasVenueData = !isAllTime && !!venueData && (
           (venueData.runs > 0 || venueData.innings > 0 || venueData.wickets > 0 || venueData.bowl_innings > 0)
         );
 
@@ -1728,7 +1738,15 @@ window.APP = {
         } : { ...zeroStats, venues_played: 0 };
 
         let score = 0;
-        if (hasVenueData) {
+        if (isAllTime && careerData) {
+          if (role === 'Batsman' || role === 'Wicketkeeper') {
+            score = (careerStats.runs * 0.5) + (Math.min(careerStats.avg, 50) * 2.0) + (careerStats.fifties * 10) + (careerStats.hundreds * 25);
+          } else if (role === 'Bowler') {
+            score = careerStats.wickets > 0 ? (careerStats.wickets * 15.0) + ((12.0 / (careerStats.economy || 8.0)) * 10) : 0;
+          } else if (role === 'All-Rounder') {
+            score = (careerStats.runs * 0.30) + (careerStats.wickets > 0 ? careerStats.wickets * 12.0 : 0);
+          }
+        } else if (hasVenueData) {
           const venueScore = computeRoleScore(role, venueStats);
           const careerScore = computeRoleScore(role, careerStats);
           const venueInnings = Math.max(venueStats.innings, venueStats.bowl_innings);
@@ -1748,10 +1766,13 @@ window.APP = {
         };
       });
 
+      // Filter out zero-wicket bowlers
       const batsmen = scored.filter(p => p.role === 'Batsman').sort((a, b) => b.score - a.score);
       const keepers = scored.filter(p => p.role === 'Wicketkeeper').sort((a, b) => b.score - a.score);
       const allrounders = scored.filter(p => p.role === 'All-Rounder').sort((a, b) => b.score - a.score);
-      const bowlers = scored.filter(p => p.role === 'Bowler').sort((a, b) => b.score - a.score);
+      const bowlers = scored
+        .filter(p => p.role === 'Bowler' && p.career_stats.wickets > 0)
+        .sort((a, b) => b.score - a.score);
 
       const selected = [];
       const needs = { Batsman: 4, Wicketkeeper: 1, 'All-Rounder': 1, Bowler: 5 };
@@ -1765,7 +1786,7 @@ window.APP = {
           const remaining = count - picked.length;
           const pickedNames = new Set(selected.map(p => p.name));
           const fallbacks = scored
-            .filter(p => !pickedNames.has(p.name))
+            .filter(p => !pickedNames.has(p.name) && (role !== 'Bowler' || p.career_stats.wickets > 0))
             .sort((a, b) => b.score - a.score)
             .slice(0, remaining)
             .map(p => ({ ...p, role: role + ' (Fallback)' }));

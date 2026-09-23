@@ -565,40 +565,46 @@ def build_playing_xi_data() -> dict:
                 bowl_inn = int(r.get("BowlInnings") or 0)
             except (ValueError, TypeError):
                 bowl_inn = 0
-            player_career[name] = {"bat_inn": bat_inn, "bowl_inn": bowl_inn}
+            try:
+                wickets = int(r.get("Wickets") or 0)
+            except (ValueError, TypeError):
+                wickets = 0
+            player_career[name] = {"bat_inn": bat_inn, "bowl_inn": bowl_inn, "wickets": wickets}
 
-    # Classify every player in the rosters
+    # Add All-Time IPL Best XI (2008-2025) roster containing ALL players
+    all_ipl_players = sorted(list(set(player_career.keys()) | set(player_meta.keys())))
+    team_rosters["All-Time IPL Best XI (2008-2025)"] = all_ipl_players
+
+    # Classify every player in all rosters
     player_roles = {}
-    all_roster_players = set()
+    all_roster_players = set(all_ipl_players)
     for players in team_rosters.values():
         all_roster_players.update(players)
 
     for p in all_roster_players:
         meta = player_meta.get(p, {})
-        career = player_career.get(p, {"bat_inn": 0, "bowl_inn": 0})
+        career = player_career.get(p, {"bat_inn": 0, "bowl_inn": 0, "wickets": 0})
         fp = meta.get("field_pos", "").lower()
         bs = meta.get("bowl_style", "")
 
         # Wicketkeeper
         if "wicketkeeper" in fp:
             player_roles[p] = "Wicketkeeper"
-        # All-Rounder: substantial contribution in both batting and bowling
-        elif career["bat_inn"] >= 10 and career["bowl_inn"] >= 10:
+        # All-Rounder: MUST have at least 15 career wickets AND 20 batting innings
+        elif career.get("wickets", 0) >= 15 and career.get("bat_inn", 0) >= 20:
             player_roles[p] = "All-Rounder"
-        # Bowler: has a recognised bowling style and meaningful bowling innings
-        elif _is_bowling_style(bs) and career["bowl_inn"] >= 5:
+        # Bowler: has a recognised bowling style and substantial bowling innings
+        elif _is_bowling_style(bs) and career.get("bowl_inn", 0) >= 10:
             player_roles[p] = "Bowler"
         # Default: Batsman
         else:
             player_roles[p] = "Batsman"
 
     # ── 3. Unique venues list ──────────────────────────────────────────────
-    # Extracted from ball-by-ball via the same venue normalisation logic
     bbb_csv = os.path.join(DATA_DIR, "ball_by_ball_data.csv")
     ipl_csv = os.path.join(DATA_DIR, "ipl.csv")
 
     venue_set = set()
-    # Pull venues from ipl.csv (match-level data)
     if os.path.exists(ipl_csv):
         with open(ipl_csv, newline="", encoding="utf-8") as f:
             for r in csv.DictReader(f):

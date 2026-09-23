@@ -133,19 +133,20 @@ const server = http.createServer((req, res) => {
 
     // ── Scoring helpers ──────────────────────────────────────────────
     function computeBatScore(s) {
-      // Weighted: runs (25%), avg (25%), SR (20%), innings experience (15%), milestones (15%)
-      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 30;
-      return (s.runs * 0.25) + (s.avg * 0.25) + (s.sr * 0.20)
-           + ((s.innings || 0) * 8 * 0.15) + (milestones * 0.15);
+      if (!s || (s.runs <= 0 && s.innings <= 0)) return 0;
+      const cappedAvg = Math.min(s.avg || 0, 65);
+      const milestones = (s.fifties || 0) * 15 + (s.hundreds || 0) * 35;
+      return (s.runs * 0.25) + (cappedAvg * 0.25) + ((s.sr || 0) * 0.20)
+           + ((s.innings || 0) * 5 * 0.15) + (milestones * 0.15);
     }
 
     function computeBowlScore(s) {
-      // Weighted: wickets (35%), economy (30%), experience (20%), impact (15%)
-      const econScore = s.economy > 0 ? (12.0 / s.economy) * 15 : 0;
-      const impact = s.wickets > 0 && (s.bowl_innings || 0) > 0
-        ? (s.wickets / s.bowl_innings) * 20 : 0;
+      // ZERO-WICKETS RULE: If a bowler has 0 wickets, bowling score is STRICTLY ZERO.
+      if (!s || s.wickets <= 0) return 0;
+      const econScore = (s.economy > 0 && s.economy <= 15) ? (12.0 / s.economy) * 15 : 0;
+      const impact = (s.bowl_innings || 0) > 0 ? (s.wickets / s.bowl_innings) * 20 : 0;
       return (s.wickets * 12 * 0.35) + (econScore * 0.30)
-           + ((s.bowl_innings || 0) * 8 * 0.20) + (impact * 0.15);
+           + ((s.bowl_innings || 0) * 5 * 0.20) + (impact * 0.15);
     }
 
     function computeScore(role, stats) {
@@ -156,7 +157,6 @@ const server = http.createServer((req, res) => {
       } else if (role === 'All-Rounder') {
         const batScore = computeBatScore(stats);
         const bowlScore = computeBowlScore(stats);
-        // Versatility bonus: reward players contributing in both disciplines
         const versatility = (stats.runs > 0 && stats.wickets > 0) ? 10 : 0;
         return batScore * 0.45 + bowlScore * 0.45 + versatility * 0.10;
       }
@@ -164,7 +164,15 @@ const server = http.createServer((req, res) => {
     }
 
     function buildXI(teamName) {
-      const roster = team_rosters[teamName] || [];
+      let roster = team_rosters[teamName] || [];
+      const isAllTime = teamName.includes('All-Time') || teamName === 'All-Time XI';
+
+      if (isAllTime) {
+        const allPlayersSet = new Set();
+        Object.values(team_rosters).forEach(rList => rList.forEach(p => allPlayersSet.add(p)));
+        roster = Array.from(allPlayersSet);
+      }
+
       if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
 
       const vl = venue.toLowerCase();
@@ -177,11 +185,10 @@ const server = http.createServer((req, res) => {
                        || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
 
         const careerData = pcs[pName] || null;
-        const hasVenueData = !!venueData && (
+        const hasVenueData = !isAllTime && !!venueData && (
           (venueData.runs > 0 || venueData.innings > 0 || venueData.wickets > 0 || venueData.bowl_innings > 0)
         );
 
-        // Build stats objects
         const zeroStats = { runs: 0, innings: 0, avg: 0, sr: 0, wickets: 0, economy: 0,
                             hs: 0, fours: 0, sixes: 0, bowl_innings: 0, fifties: 0, hundreds: 0 };
 
@@ -206,20 +213,25 @@ const server = http.createServer((req, res) => {
 
         let score = 0;
 
-        if (hasVenueData) {
-          // Venue data exists: 70% venue + 30% career
+        if (isAllTime && careerData) {
+          // All-Time IPL Best XI (2008-2025) Legend Scoring
+          if (role === 'Batsman' || role === 'Wicketkeeper') {
+            score = (careerStats.runs * 0.5) + (Math.min(careerStats.avg, 50) * 2.0) + (careerStats.fifties * 10) + (careerStats.hundreds * 25);
+          } else if (role === 'Bowler') {
+            score = careerStats.wickets > 0 ? (careerStats.wickets * 15.0) + ((12.0 / (careerStats.economy || 8.0)) * 10) : 0;
+          } else if (role === 'All-Rounder') {
+            score = (careerStats.runs * 0.30) + (careerStats.wickets > 0 ? careerStats.wickets * 12.0 : 0);
+          }
+        } else if (hasVenueData) {
           const venueScore = computeScore(role, venueStats);
           const careerScore = computeScore(role, careerStats);
-          // Venue experience bonus: more innings at venue = more reliable data
           const venueInnings = Math.max(venueStats.innings, venueStats.bowl_innings);
-          const experienceBonus = Math.min(venueInnings * 2, 20); // cap at 20 bonus points
+          const experienceBonus = Math.min(venueInnings * 2, 20);
           score = venueScore * 0.70 + careerScore * 0.30 + experienceBonus;
         } else if (careerData) {
-          // No venue data but has career stats: use career with a small penalty
           const careerScore = computeScore(role, careerStats);
-          score = careerScore * 0.85; // 15% penalty for lack of venue experience
+          score = careerScore * 0.85;
         }
-        // else: no data at all => score stays 0
 
         return {
           name: pName,
@@ -232,13 +244,14 @@ const server = http.createServer((req, res) => {
         };
       });
 
-      // Group by role
+      // Group by role — STRICTLY EXCLUDE 0-wicket bowlers
       const batsmen = scored.filter(p => p.role === 'Batsman').sort((a, b) => b.score - a.score);
       const keepers = scored.filter(p => p.role === 'Wicketkeeper').sort((a, b) => b.score - a.score);
       const allrounders = scored.filter(p => p.role === 'All-Rounder').sort((a, b) => b.score - a.score);
-      const bowlers = scored.filter(p => p.role === 'Bowler').sort((a, b) => b.score - a.score);
+      const bowlers = scored
+        .filter(p => p.role === 'Bowler' && p.career_stats.wickets > 0)
+        .sort((a, b) => b.score - a.score);
 
-      // Select: 4 Batsmen, 1 WK, 1 All-Rounder, 5 Bowlers
       const selected = [];
       const needs = { Batsman: 4, Wicketkeeper: 1, 'All-Rounder': 1, Bowler: 5 };
       const pools = { Batsman: batsmen, Wicketkeeper: keepers, 'All-Rounder': allrounders, Bowler: bowlers };
@@ -248,12 +261,11 @@ const server = http.createServer((req, res) => {
         const picked = pool.slice(0, count);
         selected.push(...picked);
 
-        // If not enough players in this role, fill from remaining scored players
         if (picked.length < count) {
           const remaining = count - picked.length;
           const pickedNames = new Set(selected.map(p => p.name));
           const fallbacks = scored
-            .filter(p => !pickedNames.has(p.name))
+            .filter(p => !pickedNames.has(p.name) && (role !== 'Bowler' || p.career_stats.wickets > 0))
             .sort((a, b) => b.score - a.score)
             .slice(0, remaining)
             .map(p => ({ ...p, role: role + ' (Fallback)' }));
