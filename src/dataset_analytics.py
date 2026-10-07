@@ -500,6 +500,28 @@ def _is_bowling_style(style_str):
     return any(kw in sl for kw in _BOWL_STYLES)
 
 
+# Keywords that indicate spin bowling
+_SPIN_KEYWORDS = {'offbreak', 'legbreak', 'orthodox', 'wrist spin', 'leg break', 'chinaman', 'googly', 'spin'}
+_PACE_KEYWORDS = {'fast', 'medium', 'pace'}
+
+
+def _classify_bowl_type(style_str):
+    """Classify a bowling style as 'pace' or 'spin'. Returns 'pace' by default."""
+    if not style_str or not isinstance(style_str, str):
+        return 'pace'
+    sl = style_str.strip().lower()
+    if any(kw in sl for kw in _SPIN_KEYWORDS):
+        # Check if it's primarily a spinner (not a medium-pace who also spins)
+        if any(kw in sl for kw in _PACE_KEYWORDS):
+            # Has both pace and spin keywords — classify based on primary style
+            # e.g. 'Right arm Medium, Right arm Offbreak' → spin-leaning
+            spin_count = sum(1 for kw in _SPIN_KEYWORDS if kw in sl)
+            pace_count = sum(1 for kw in _PACE_KEYWORDS if kw in sl)
+            return 'spin' if spin_count >= pace_count else 'pace'
+        return 'spin'
+    return 'pace'
+
+
 def build_playing_xi_data() -> dict:
     """
     Build data required by the Best Playing XI generator feature.
@@ -530,10 +552,9 @@ def build_playing_xi_data() -> dict:
             player = r["player_name"]
             season_team_player.setdefault(s, {}).setdefault(team, set()).add(player)
 
-    # Use the latest 3 seasons to build rosters
-    latest_seasons = sorted(all_seasons, reverse=True)[:3]
+    # Use all seasons to build team rosters so that each team has its ALL-TIME roster
     team_rosters = {}
-    for s in latest_seasons:
+    for s in all_seasons:
         for team, players in season_team_player.get(s, {}).items():
             team_rosters.setdefault(team, set()).update(players)
 
@@ -596,11 +617,20 @@ def build_playing_xi_data() -> dict:
         # Bowler: has a recognised bowling style and substantial bowling innings
         elif _is_bowling_style(bs) and career.get("bowl_inn", 0) >= 10:
             player_roles[p] = "Bowler"
+        elif career.get("wickets", 0) >= 5 or career.get("bowl_inn", 0) >= 5:
+            player_roles[p] = "Bowler"
         # Default: Batsman
         else:
             player_roles[p] = "Batsman"
 
-    # ── 3. Unique venues list ──────────────────────────────────────────────
+    # ── 3. Classify bowler types (pace vs spin) ────────────────────────────
+    player_bowl_types = {}
+    for p in all_roster_players:
+        meta = player_meta.get(p, {})
+        bs = meta.get("bowl_style", "")
+        player_bowl_types[p] = _classify_bowl_type(bs)
+
+    # ── 4. Unique venues list ──────────────────────────────────────────────
     bbb_csv = os.path.join(DATA_DIR, "ball_by_ball_data.csv")
     ipl_csv = os.path.join(DATA_DIR, "ipl.csv")
 
@@ -617,6 +647,7 @@ def build_playing_xi_data() -> dict:
     return {
         "team_rosters": team_rosters,
         "player_roles": player_roles,
+        "player_bowl_types": player_bowl_types,
         "venues_list": venues_list,
     }
 

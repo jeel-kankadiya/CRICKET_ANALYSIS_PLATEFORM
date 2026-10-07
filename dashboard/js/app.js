@@ -1569,33 +1569,31 @@ window.APP = {
     }
   },
 
-  // ─── BEST PLAYING XI SECTION ─────────────────────────────────────────
+  // ─── ALL-TIME TEAM PLAYING XI SECTION ──────────────────────────────────
   renderPlayingXISection: function() {
     const d = this.data;
     if (!d) return;
 
-    const sel1 = document.getElementById('xiTeam1Select');
-    const sel2 = document.getElementById('xiTeam2Select');
+    const selTeam = document.getElementById('xiTeamSelect');
     const selV = document.getElementById('xiVenueSelect');
     const genBtn = document.getElementById('xiGenerateBtn');
 
-    if (!sel1 || !sel2 || !selV) return;
+    if (!selTeam || !selV) return;
 
-    // Populate team dropdowns from current_elo_ratings or playing_xi_data
+    // Populate team dropdown from current_elo_ratings or playing_xi_data
     const teams = d.playing_xi_data && d.playing_xi_data.team_rosters
       ? Object.keys(d.playing_xi_data.team_rosters).sort()
       : Object.keys(d.current_elo_ratings || {}).sort();
 
-    sel1.innerHTML = '';
-    sel2.innerHTML = '';
+    selTeam.innerHTML = '';
     teams.forEach((t, i) => {
-      sel1.add(new Option(t, t, false, i === 0));
-      sel2.add(new Option(t, t, false, i === 1));
+      selTeam.add(new Option(t, t, false, i === 0));
     });
 
-    // Populate venue dropdown
+    // Populate venue dropdown with "All Venues" option at top
     const venues = (d.playing_xi_data && d.playing_xi_data.venues_list) || [];
     selV.innerHTML = '';
+    selV.add(new Option('🌍 All Venues (Career Best)', 'all'));
     if (venues.length > 0) {
       venues.forEach(v => selV.add(new Option(v, v)));
     } else if (d.venue_stats) {
@@ -1609,13 +1607,12 @@ window.APP = {
   },
 
   generatePlayingXI: async function() {
-    const team1 = document.getElementById('xiTeam1Select').value;
-    const team2 = document.getElementById('xiTeam2Select').value;
+    const team = document.getElementById('xiTeamSelect').value;
     const venue = document.getElementById('xiVenueSelect').value;
     const btn = document.getElementById('xiGenerateBtn');
     const output = document.getElementById('xiResultsOutput');
 
-    if (!team1 || !team2 || !venue) return;
+    if (!team) return;
 
     // Show loading
     btn.disabled = true;
@@ -1624,7 +1621,9 @@ window.APP = {
     // Try API first, then fallback to client-side computation
     let result = null;
     try {
-      const url = `/api/playing-xi?team1=${encodeURIComponent(team1)}&team2=${encodeURIComponent(team2)}&venue=${encodeURIComponent(venue)}`;
+      const params = new URLSearchParams({ team });
+      if (venue && venue !== 'all') params.set('venue', venue);
+      const url = `/api/playing-xi?${params.toString()}`;
       const res = await fetch(url);
       if (res.ok) {
         result = await res.json();
@@ -1635,7 +1634,7 @@ window.APP = {
 
     // Client-side fallback
     if (!result) {
-      result = this._computePlayingXIClientSide(team1, team2, venue);
+      result = this._computePlayingXIClientSide(team, venue);
     }
 
     // Restore button
@@ -1644,7 +1643,7 @@ window.APP = {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
-      Generate Best Playing XI
+      Generate All-Time XI
     `;
 
     // Render results
@@ -1653,13 +1652,39 @@ window.APP = {
     }
   },
 
-  _computePlayingXIClientSide: function(team1, team2, venue) {
+  _computePlayingXIClientSide: function(team, venue) {
     const d = this.data;
     if (!d || !d.playing_xi_data) return null;
 
-    const { team_rosters, player_roles } = d.playing_xi_data;
+    const { team_rosters, player_roles, player_bowl_types } = d.playing_xi_data;
+    const bowlTypes = player_bowl_types || {};
     const pvs = d.player_venue_stats || {};
     const pcs = d.player_career_stats || {};
+    const isAllVenues = !venue || venue === 'all';
+
+    // ── Determine venue pitch type ──────────────────────────────────
+    let pitchType = 'Balanced';
+    if (!isAllVenues && d.venue_intelligence && d.venue_intelligence.venue_profiles) {
+      const vLower = venue.toLowerCase().split('(')[0].split(',')[0].trim();
+      const matchingProfiles = d.venue_intelligence.venue_profiles.filter(
+        v => v.venue && v.venue.toLowerCase().includes(vLower)
+      );
+      if (matchingProfiles.length > 0) {
+        matchingProfiles.sort((a, b) => (b.total_matches_hosted || 0) - (a.total_matches_hosted || 0));
+        if (matchingProfiles[0].pitch_type) {
+          pitchType = matchingProfiles[0].pitch_type;
+        }
+      }
+    }
+
+    const pitchCompositions = {
+      'Seam Friendly':    { pace: 4, spin: 1, arPref: 'pace' },
+      'Batting Paradise': { pace: 3, spin: 2, arPref: 'pace' },
+      'Balanced':         { pace: 3, spin: 2, arPref: 'pace' },
+      'Spin Friendly':    { pace: 2, spin: 3, arPref: 'spin' },
+      'Slow & Low':       { pace: 2, spin: 3, arPref: 'spin' },
+    };
+    const comp = pitchCompositions[pitchType] || pitchCompositions['Balanced'];
 
     // ── Scoring helpers (mirror server logic) ────────────────────────
     function computeBatScore(s) {
@@ -1702,16 +1727,18 @@ window.APP = {
 
       if (roster.length === 0) return { team: teamName, error: 'No roster found', players: [] };
 
-      const vl = venue.toLowerCase();
+      const vl = venue ? venue.toLowerCase() : '';
 
       const scored = roster.map(pName => {
         const role = player_roles[pName] || 'Batsman';
         const venueList = pvs[pName] || [];
-        const venueData = venueList.find(v => v.venue && v.venue.toLowerCase() === vl)
-          || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase()));
+        const venueData = !isAllVenues
+          ? (venueList.find(v => v.venue && v.venue.toLowerCase() === vl)
+            || venueList.find(v => v.venue && v.venue.toLowerCase().includes(vl.split('(')[0].trim().toLowerCase())))
+          : null;
 
         const careerData = pcs[pName] || null;
-        const hasVenueData = !isAllTime && !!venueData && (
+        const hasVenueData = !isAllVenues && !isAllTime && !!venueData && (
           (venueData.runs > 0 || venueData.innings > 0 || venueData.wickets > 0 || venueData.bowl_innings > 0)
         );
 
@@ -1738,7 +1765,8 @@ window.APP = {
         } : { ...zeroStats, venues_played: 0 };
 
         let score = 0;
-        if (isAllTime && careerData) {
+        if ((isAllTime || isAllVenues) && careerData) {
+          // Career-based scoring
           if (role === 'Batsman' || role === 'Wicketkeeper') {
             score = (careerStats.runs * 0.5) + (Math.min(careerStats.avg, 50) * 2.0) + (careerStats.fifties * 10) + (careerStats.hundreds * 25);
           } else if (role === 'Bowler') {
@@ -1758,6 +1786,7 @@ window.APP = {
 
         return {
           name: pName, role,
+          bowl_type: bowlTypes[pName] || 'pace',
           score: Math.round(score * 10) / 10,
           venue_stats: venueStats,
           career_stats: careerStats,
@@ -1766,42 +1795,74 @@ window.APP = {
         };
       });
 
-      // Filter out zero-wicket bowlers
       const batsmen = scored.filter(p => p.role === 'Batsman').sort((a, b) => b.score - a.score);
       const keepers = scored.filter(p => p.role === 'Wicketkeeper').sort((a, b) => b.score - a.score);
-      const allrounders = scored.filter(p => p.role === 'All-Rounder').sort((a, b) => b.score - a.score);
-      const bowlers = scored
-        .filter(p => p.role === 'Bowler' && p.career_stats.wickets > 0)
-        .sort((a, b) => b.score - a.score);
+      const paceBowlers = scored.filter(p => p.role === 'Bowler' && p.bowl_type === 'pace' && p.career_stats.wickets > 0).sort((a, b) => b.score - a.score);
+      const spinBowlers = scored.filter(p => p.role === 'Bowler' && p.bowl_type === 'spin' && p.career_stats.wickets > 0).sort((a, b) => b.score - a.score);
+      const paceARs = scored.filter(p => p.role === 'All-Rounder' && p.bowl_type === 'pace').sort((a, b) => b.score - a.score);
+      const spinARs = scored.filter(p => p.role === 'All-Rounder' && p.bowl_type === 'spin').sort((a, b) => b.score - a.score);
 
       const selected = [];
-      const needs = { Batsman: 4, Wicketkeeper: 1, 'All-Rounder': 1, Bowler: 5 };
-      const pools = { Batsman: batsmen, Wicketkeeper: keepers, 'All-Rounder': allrounders, Bowler: bowlers };
+      // 1. Pick 4 batsmen
+      selected.push(...batsmen.slice(0, 4));
 
-      for (const [role, count] of Object.entries(needs)) {
-        const pool = pools[role];
-        const picked = pool.slice(0, count);
-        selected.push(...picked);
-        if (picked.length < count) {
-          const remaining = count - picked.length;
-          const pickedNames = new Set(selected.map(p => p.name));
-          const fallbacks = scored
-            .filter(p => !pickedNames.has(p.name) && (role !== 'Bowler' || p.career_stats.wickets > 0))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, remaining)
-            .map(p => ({ ...p, role: role + ' (Fallback)' }));
-          selected.push(...fallbacks);
-        }
+      // 2. Pick 1 Wicketkeeper
+      if (keepers.length > 0) {
+        selected.push(keepers[0]);
+      } else {
+        const pickedNames = new Set(selected.map(p => p.name));
+        const wkFb = batsmen.filter(p => !pickedNames.has(p.name)).slice(0, 1).map(p => ({ ...p, role: 'Wicketkeeper (Fallback)' }));
+        selected.push(...wkFb);
+      }
+
+      // 3. Pick 1 All-Rounder (matching pitch type preference)
+      const prefARs = comp.arPref === 'spin' ? spinARs : paceARs;
+      const altARs = comp.arPref === 'spin' ? paceARs : spinARs;
+      if (prefARs.length > 0) {
+        selected.push(prefARs[0]);
+      } else if (altARs.length > 0) {
+        selected.push(altARs[0]);
+      } else {
+        const pickedNames = new Set(selected.map(p => p.name));
+        const arFb = scored.filter(p => !pickedNames.has(p.name)).sort((a, b) => b.score - a.score).slice(0, 1).map(p => ({ ...p, role: 'All-Rounder (Fallback)' }));
+        selected.push(...arFb);
+      }
+
+      // 4. Pick 5 bowlers matching pitch type composition
+      const pickedNames = new Set(selected.map(p => p.name));
+      const availPace = paceBowlers.filter(p => !pickedNames.has(p.name));
+      const availSpin = spinBowlers.filter(p => !pickedNames.has(p.name));
+      const pickedPace = availPace.slice(0, comp.pace);
+      const pickedSpin = availSpin.slice(0, comp.spin);
+      selected.push(...pickedPace, ...pickedSpin);
+
+      // Shortfall fallback
+      const totalBowlers = pickedPace.length + pickedSpin.length;
+      if (totalBowlers < 5) {
+        const currentNames = new Set(selected.map(p => p.name));
+        const rem = scored.filter(p => p.role === 'Bowler' && p.career_stats.wickets > 0 && !currentNames.has(p.name)).sort((a, b) => b.score - a.score);
+        selected.push(...rem.slice(0, 5 - totalBowlers));
       }
 
       return { team: teamName, players: selected.slice(0, 11) };
     }
 
-    return { venue, team1_xi: buildXI(team1), team2_xi: buildXI(team2) };
+    return {
+      team,
+      venue: isAllVenues ? 'All Venues (Career)' : venue,
+      pitch_type: pitchType,
+      bowling_composition: comp,
+      xi: buildXI(team)
+    };
   },
 
   renderPlayingXIResults: function(result, container) {
     if (!container) return;
+
+    const xi = result.xi;
+    const venueLabel = result.venue || 'All Venues (Career)';
+    const pitchType = result.pitch_type || 'Balanced';
+    const comp = result.bowling_composition || { pace: 3, spin: 2 };
 
     const getTeamColor = (teamName) => {
       const info = window.getTeamInfo ? window.getTeamInfo(teamName) : null;
@@ -1835,115 +1896,137 @@ window.APP = {
       return name.substring(0, 2).toUpperCase();
     };
 
-    const renderTeamPanel = (xi, teamColor) => {
-      if (!xi || !xi.players || xi.players.length === 0) {
-        return `<div class="xi-team-panel">
-          <div class="xi-empty-state">
-            <div class="xi-empty-state-icon">⚠️</div>
-            <div class="xi-empty-state-text">${xi.error || 'No players found for this team'}</div>
+    const teamColor = getTeamColor(xi.team);
+    const isCareerMode = venueLabel.includes('All Venues') || venueLabel.includes('Career');
+
+    if (!xi || !xi.players || xi.players.length === 0) {
+      container.innerHTML = `
+        <div class="xi-results-container">
+          <div class="xi-team-panel">
+            <div class="xi-empty-state">
+              <div class="xi-empty-state-icon">⚠️</div>
+              <div class="xi-empty-state-text">${xi.error || 'No players found for this team'}</div>
+            </div>
           </div>
         </div>`;
-      }
+      return;
+    }
 
-      // Find best performer (highest score)
-      const bestIdx = xi.players.reduce((maxI, p, i, arr) => p.score > arr[maxI].score ? i : maxI, 0);
+    // Find best performer (highest score)
+    const bestIdx = xi.players.reduce((maxI, p, i, arr) => p.score > arr[maxI].score ? i : maxI, 0);
 
-      // Group players by role for display
-      const roleOrder = ['Batsman', 'Wicketkeeper', 'All-Rounder', 'Bowler'];
-      const grouped = {};
-      xi.players.forEach((p, idx) => {
-        const baseRole = p.role.replace(/\s*\(Fallback\)/, '');
-        if (!grouped[baseRole]) grouped[baseRole] = [];
-        grouped[baseRole].push({ ...p, originalIdx: idx });
-      });
+    // Group players by role for display
+    const roleOrder = ['Batsman', 'Wicketkeeper', 'All-Rounder', 'Bowler'];
+    const grouped = {};
+    xi.players.forEach((p, idx) => {
+      const baseRole = p.role.replace(/\s*\(Fallback\)/, '');
+      if (!grouped[baseRole]) grouped[baseRole] = [];
+      grouped[baseRole].push({ ...p, originalIdx: idx });
+    });
 
-      let playerCards = '';
-      let playerNum = 1;
+    let playerCards = '';
+    let playerNum = 1;
 
-      roleOrder.forEach(role => {
-        const players = grouped[role];
-        if (!players || players.length === 0) return;
+    roleOrder.forEach(role => {
+      const players = grouped[role];
+      if (!players || players.length === 0) return;
 
-        const roleClass = getRoleBadgeClass(role);
-        const roleTitles = { 'Batsman': '🏏 BATSMEN', 'Wicketkeeper': '🧤 WICKETKEEPER', 'All-Rounder': '⚡ ALL-ROUNDER', 'Bowler': '🎯 BOWLERS' };
+      const roleClass = getRoleBadgeClass(role);
+      const roleTitles = { 'Batsman': '🏏 BATSMEN', 'Wicketkeeper': '🧤 WICKETKEEPER', 'All-Rounder': '⚡ ALL-ROUNDER', 'Bowler': '🎯 BOWLERS' };
 
-        playerCards += `<div class="xi-role-group">
-          <div class="xi-role-group-title ${roleClass}">${roleTitles[role] || role}</div>`;
+      playerCards += `<div class="xi-role-group">
+        <div class="xi-role-group-title ${roleClass}">${roleTitles[role] || role}</div>`;
 
-        players.forEach(p => {
-          const isBest = p.originalIdx === bestIdx;
-          const hasVenue = p.has_venue_data !== undefined ? p.has_venue_data : true;
-          const s = hasVenue ? p.venue_stats : (p.career_stats || p.venue_stats);
-          const isBatting = (role === 'Batsman' || role === 'Wicketkeeper' || role === 'All-Rounder');
-          const isBowling = (role === 'Bowler' || role === 'All-Rounder');
+      players.forEach(p => {
+        const isBest = p.originalIdx === bestIdx;
+        const hasVenue = p.has_venue_data !== undefined ? p.has_venue_data : !isCareerMode;
+        const s = hasVenue ? p.venue_stats : (p.career_stats || p.venue_stats);
+        const isBatting = (role === 'Batsman' || role === 'Wicketkeeper' || role === 'All-Rounder');
+        const isBowling = (role === 'Bowler' || role === 'All-Rounder');
 
-          // Data source indicator
-          const dataSourceBadge = hasVenue
+        // Data source indicator
+        const dataSourceBadge = isCareerMode
+          ? `<span class="xi-data-source career" title="Career aggregate stats">📊 Career Stats</span>`
+          : (hasVenue
             ? `<span class="xi-data-source venue" title="Stats from this venue">📍 Venue Stats (${p.matches_at_venue || s.innings || 0} inn)</span>`
-            : `<span class="xi-data-source career" title="No venue data — showing career stats">📊 Career Stats</span>`;
+            : `<span class="xi-data-source career" title="No venue data — showing career stats">📊 Career Stats</span>`);
 
-          let statsHTML = '<div class="xi-player-venue-stats">';
-          if (isBatting) {
+        const bowlBadge = isBowling && p.bowl_type ? (
+          p.bowl_type === 'spin' 
+            ? `<span class="xi-data-source venue" style="background:rgba(147,51,234,0.15); color:#c084fc; border:1px solid rgba(147,51,234,0.3);">🌀 Spin</span>`
+            : `<span class="xi-data-source venue" style="background:rgba(14,165,233,0.15); color:#38bdf8; border:1px solid rgba(14,165,233,0.3);">⚡ Pace</span>`
+        ) : '';
+
+        let statsHTML = '<div class="xi-player-venue-stats">';
+        if (isBatting) {
+          statsHTML += `
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.innings || 0}</span><span class="xi-venue-stat-label">Inn</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.runs}</span><span class="xi-venue-stat-label">Runs</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.avg}</span><span class="xi-venue-stat-label">Avg</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.sr}</span><span class="xi-venue-stat-label">SR</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.hs || 0}</span><span class="xi-venue-stat-label">HS</span></div>
+          `;
+          if ((s.fifties || 0) > 0 || (s.hundreds || 0) > 0) {
             statsHTML += `
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.innings || 0}</span><span class="xi-venue-stat-label">Inn</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.runs}</span><span class="xi-venue-stat-label">Runs</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.avg}</span><span class="xi-venue-stat-label">Avg</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.sr}</span><span class="xi-venue-stat-label">SR</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.hs || 0}</span><span class="xi-venue-stat-label">HS</span></div>
-            `;
-            if ((s.fifties || 0) > 0 || (s.hundreds || 0) > 0) {
-              statsHTML += `
-                <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.fifties || 0}/${s.hundreds || 0}</span><span class="xi-venue-stat-label">50s/100s</span></div>
-              `;
-            }
-          }
-          if (isBowling) {
-            statsHTML += `
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.bowl_innings || 0}</span><span class="xi-venue-stat-label">B.Inn</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.wickets}</span><span class="xi-venue-stat-label">Wkts</span></div>
-              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.economy}</span><span class="xi-venue-stat-label">Econ</span></div>
+              <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.fifties || 0}/${s.hundreds || 0}</span><span class="xi-venue-stat-label">50s/100s</span></div>
             `;
           }
-          statsHTML += '</div>';
+        }
+        if (isBowling) {
+          statsHTML += `
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.bowl_innings || 0}</span><span class="xi-venue-stat-label">B.Inn</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.wickets}</span><span class="xi-venue-stat-label">Wkts</span></div>
+            <div class="xi-venue-stat"><span class="xi-venue-stat-value">${s.economy}</span><span class="xi-venue-stat-label">Econ</span></div>
+          `;
+        }
+        statsHTML += '</div>';
 
-          playerCards += `
-            <div class="xi-player-card ${isBest ? 'best-performer' : ''} ${!hasVenue ? 'career-fallback' : ''}">
-              <span class="xi-player-number">${playerNum}</span>
-              <div class="xi-player-avatar" style="background:${teamColor}">${getInitials(p.name)}</div>
-              <div class="xi-player-info">
-                <div class="xi-player-name">${p.name}</div>
-                <div class="xi-player-meta">
-                  <span class="xi-role-badge ${roleClass}">${getRoleDisplayName(p.role)}</span>
-                  ${dataSourceBadge}
-                </div>
+        playerCards += `
+          <div class="xi-player-card ${isBest ? 'best-performer' : ''} ${!hasVenue && !isCareerMode ? 'career-fallback' : ''}">
+            <span class="xi-player-number">${playerNum}</span>
+            <div class="xi-player-avatar" style="background:${teamColor}">${getInitials(p.name)}</div>
+            <div class="xi-player-info">
+              <div class="xi-player-name">${p.name}</div>
+              <div class="xi-player-meta">
+                <span class="xi-role-badge ${roleClass}">${getRoleDisplayName(p.role)}</span>
+                ${bowlBadge}
+                ${dataSourceBadge}
               </div>
-              ${statsHTML}
-            </div>`;
-          playerNum++;
-        });
-
-        playerCards += '</div>';
+            </div>
+            ${statsHTML}
+          </div>`;
+        playerNum++;
       });
 
-      return `<div class="xi-team-panel">
-        <div class="xi-team-panel-header">
-          <div class="xi-team-badge" style="background:${teamColor}">${getTeamShort(xi.team)}</div>
-          <div>
-            <div class="xi-team-name">${xi.team}</div>
-            <div class="xi-venue-label">📍 ${result.venue}</div>
-          </div>
-        </div>
-        ${playerCards}
-      </div>`;
-    };
+      playerCards += '</div>';
+    });
 
-    const team1Color = getTeamColor(result.team1_xi.team);
-    const team2Color = getTeamColor(result.team2_xi.team);
+    const teamBadgeSVG = window.renderTeamBadgeSVG ? window.renderTeamBadgeSVG(xi.team, 48) : '';
+    const pitchPill = !isCareerMode ? `
+      <div style="margin-top:6px; font-size:12px; font-weight:600; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+        <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:10px; border:1px solid rgba(255,255,255,0.1);">🏟️ Pitch: ${pitchType}</span>
+        <span style="background:rgba(59,130,246,0.1); color:#60a5fa; padding:2px 8px; border-radius:10px; border:1px solid rgba(59,130,246,0.2);">🎳 Strategy: ${comp.pace} Pace + ${comp.spin} Spin</span>
+      </div>
+    ` : '';
 
     container.innerHTML = `
       <div class="xi-results-container">
-        ${renderTeamPanel(result.team1_xi, team1Color)}
-        ${renderTeamPanel(result.team2_xi, team2Color)}
+        <div class="xi-team-panel" style="border-top: 3px solid ${teamColor};">
+          <div class="xi-team-panel-header">
+            <div style="display:flex; align-items:center; gap:14px;">
+              ${teamBadgeSVG ? `<div>${teamBadgeSVG}</div>` : `<div class="xi-team-badge" style="background:${teamColor}">${getTeamShort(xi.team)}</div>`}
+              <div>
+                <div class="xi-team-name">${xi.team}</div>
+                <div class="xi-venue-label">${isCareerMode ? '🌍' : '📍'} ${venueLabel}</div>
+                ${pitchPill}
+              </div>
+            </div>
+            <div style="padding:6px 14px; border-radius:20px; font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent-amber); background:rgba(217,119,6,0.1); border:1px solid rgba(217,119,6,0.25);">
+              🏆 Playing XI
+            </div>
+          </div>
+          ${playerCards}
+        </div>
       </div>
     `;
   }
