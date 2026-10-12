@@ -403,24 +403,28 @@ def player_venue_analytics():
 
                 m_bat = p_v_match[batter][venue][m_id]
                 m_bat['runs'] += runs
-                if r.get('is_wide_ball') != '1':
+                is_wide = str(r.get('is_wide_ball', '')).lower() in ('1', 'true')
+                is_noball = str(r.get('is_no_ball', '')).lower() in ('1', 'true')
+                is_wkt = str(r.get('is_wicket', '')).lower() in ('1', 'true')
+
+                if not is_wide:
                     m_bat['balls'] += 1
                 if runs == 4: m_bat['fours'] += 1
                 elif runs == 6: m_bat['sixes'] += 1
 
                 p_out = r.get('player_out', '').strip()
-                if p_out == batter or (r.get('is_wicket') == '1' and p_out == batter):
+                if p_out == batter or (is_wkt and p_out == batter):
                     m_bat['outs'] += 1
 
                 if bowler:
                     m_bowl = p_v_bowl_match[bowler][venue][m_id]
-                    if r.get('is_wide_ball') != '1' and r.get('is_no_ball') != '1':
+                    if not is_wide and not is_noball:
                         m_bowl['balls'] += 1
                     noball_r = int(r.get('no_ball_runs', 0) or 0)
                     wide_r = int(r.get('wide_ball_runs', 0) or 0)
                     m_bowl['runs'] += (runs + noball_r + wide_r)
                     w_kind = r.get('wicket_kind', '')
-                    if r.get('is_wicket') == '1' and w_kind not in ['run out', 'retired hurt', 'obstructing the field', 'hit double ball']:
+                    if is_wkt and w_kind not in ['run out', 'retired hurt', 'obstructing the field', 'hit double ball']:
                         m_bowl['wickets'] += 1
 
     player_venue_summary = {}
@@ -473,7 +477,7 @@ def player_venue_analytics():
                     'economy': b_econ
                 })
 
-        venues_stat.sort(key=lambda x: -x['runs'])
+        venues_stat.sort(key=lambda x: -(x['runs'] + x['wickets'] * 25 + x['innings'] * 2))
         player_venue_summary[player] = venues_stat
 
     return player_venue_summary
@@ -763,7 +767,8 @@ if __name__ == "__main__":
     out = os.path.join(OUTPUTS_DIR, "dataset_analytics.json")
     with open(out, "w") as f:
         json.dump(result, f, default=str, indent=2)
-    print(f"✓ Analytics written → {out}")
+    print(f"[OK] Analytics written -> {out}")
     for key, val in result.items():
         sub = list(val.keys()) if isinstance(val, dict) else "list"
         print(f"  {key}: {sub}")
+
