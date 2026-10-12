@@ -294,6 +294,11 @@ window.APP = {
     timeline: [],
     commentary: [],
     autoPlayTimer: null,
+    // Batting scorecard
+    striker:      { name: 'Batter #1', runs: 0, balls: 0, fours: 0, sixes: 0 },
+    nonStriker:   { name: 'Batter #2', runs: 0, balls: 0, fours: 0, sixes: 0 },
+    nextBatterIdx: 3,   // next batter number when a wicket falls
+    battingCard:  [],   // dismissed batters [{name, runs, balls, fours, sixes}]
   },
 
   renderSimulatorSection: function() {
@@ -457,6 +462,12 @@ window.APP = {
     this.liveSimState.timeline = [];
     this.liveSimState.commentary = [];
 
+    // Reset batting scorecard
+    this.liveSimState.striker      = { name: 'Batter #1', runs: 0, balls: 0, fours: 0, sixes: 0 };
+    this.liveSimState.nonStriker   = { name: 'Batter #2', runs: 0, balls: 0, fours: 0, sixes: 0 };
+    this.liveSimState.nextBatterIdx = 3;
+    this.liveSimState.battingCard   = [];
+
     // Seed timeline with just the starting point (0/0, 0.0 ov)
     const p0 = this.calcLiveWinProb(this.liveSimState.chasingTeam, this.liveSimState.defendingTeam, this.liveSimState.target, 0, 0, 0);
     this.liveSimState.timeline.push({ overStr: '0.0', prob: p0.chase, score: 0, wkts: 0 });
@@ -464,6 +475,7 @@ window.APP = {
     const target = this.liveSimState.target;
     this.appendCommentary('0.0', `Match ready — Target: ${target}. Set the 1st innings target above and click a ball button to begin the 2nd innings.`, 'info', null);
     this.updateLiveSimUI();
+    this.updateScorecardUI();
   },
 
   loadSimPreset: function(preset) {
@@ -566,6 +578,39 @@ window.APP = {
         break;
     }
 
+    // ---- Update batting scorecard ----
+    if (isLegal) {
+      s.striker.balls += 1;
+    }
+    if (runsScored > 0 && action !== 'Wd') { // wides don’t credit to batter
+      s.striker.runs += runsScored;
+      if (runsScored === 4) s.striker.fours += 1;
+      if (runsScored === 6) s.striker.sixes += 1;
+    }
+    if (isWicket) {
+      // Move striker to dismissed list
+      s.battingCard.push({ ...s.striker, status: 'c & b (sim)' });
+      // Next batter comes in as striker
+      s.striker = { name: `Batter #${s.nextBatterIdx}`, runs: 0, balls: 0, fours: 0, sixes: 0 };
+      s.nextBatterIdx += 1;
+    } else if (isLegal && runsScored % 2 !== 0) {
+      // Odd runs = batters cross, swap striker and non-striker
+      const temp = s.striker;
+      s.striker = s.nonStriker;
+      s.nonStriker = temp;
+    }
+    // At end of over swap striker <-> non-striker
+    // (handled by checking if balls just became a multiple of 6)
+    const newBalls = Math.min(120, s.balls + (isLegal ? 1 : 0));
+    if (isLegal && newBalls % 6 === 0 && newBalls > 0 && !isWicket) {
+      // Undo the odd-run swap we might have done above, then apply end-of-over swap
+      // Actually easier: just swap at end of every over unconditionally if we haven’t swapped already
+      // The logic above handles odd runs; end-of-over swap is separate
+      const temp2 = s.striker;
+      s.striker = s.nonStriker;
+      s.nonStriker = temp2;
+    }
+
     s.score += runsScored;
     if (isLegal) s.balls = Math.min(120, s.balls + 1);
     if (isWicket) s.wickets = Math.min(10, s.wickets + 1);
@@ -580,6 +625,7 @@ window.APP = {
     s.timeline.push({ overStr, prob: newProb, score: s.score, wkts: s.wickets });
     this.appendCommentary(overStr, comment, eventType, shift);
     this.updateLiveSimUI();
+    this.updateScorecardUI();
   },
 
   simulateSimOver: function() {
@@ -867,6 +913,94 @@ window.APP = {
 
     // Update worm chart
     this.renderLiveProbChart();
+  },
+
+  updateScorecardUI: function() {
+    const s = this.liveSimState;
+    const panel = document.getElementById('liveScorecardPanel');
+    if (!panel) return;
+
+    const sr = (runs, balls) => balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0';
+
+    const rowHTML = (batter, isStriker) => {
+      const strikerMark = isStriker
+        ? `<span style="color:var(--accent-teal); font-size:10px; font-weight:800; margin-left:4px;">&#x25BA; ON STRIKE</span>`
+        : `<span style="color:var(--text-muted); font-size:10px; margin-left:4px;">(non-striker)</span>`;
+      return `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06); background:${isStriker ? 'rgba(13,148,136,0.07)' : 'transparent'}">
+          <td style="padding:9px 12px; font-weight:700; color:var(--text-main); font-size:13px;">
+            ${batter.name}${strikerMark}
+          </td>
+          <td style="padding:9px 12px; text-align:center; font-family:var(--font-mono); font-weight:900; font-size:15px; color:${isStriker ? 'var(--accent-teal)' : 'var(--text-main)'}">${batter.runs}</td>
+          <td style="padding:9px 12px; text-align:center; font-family:var(--font-mono); color:var(--text-dim);">${batter.balls}</td>
+          <td style="padding:9px 12px; text-align:center; font-family:var(--font-mono); color:var(--accent-sky);">${batter.fours}</td>
+          <td style="padding:9px 12px; text-align:center; font-family:var(--font-mono); color:var(--accent-amber);">${batter.sixes}</td>
+          <td style="padding:9px 12px; text-align:center; font-family:var(--font-mono); font-size:12px; color:${parseFloat(sr(batter.runs,batter.balls))>=150?'var(--accent-emerald)':parseFloat(sr(batter.runs,batter.balls))<80?'var(--accent-rose)':'var(--text-dim)'}">${sr(batter.runs, batter.balls)}</td>
+          <td style="padding:9px 12px; text-align:center;"><span style="font-size:10px; font-weight:700; background:rgba(13,148,136,0.12); color:var(--accent-teal); border:1px solid rgba(13,148,136,0.25); padding:2px 8px; border-radius:10px;">BATTING</span></td>
+        </tr>`;
+    };
+
+    const dismissedRowHTML = (batter) => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.04); opacity:0.75;">
+        <td style="padding:8px 12px; font-size:13px; color:var(--text-muted);">${batter.name}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:var(--font-mono); font-weight:800; color:var(--text-main);">${batter.runs}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:var(--font-mono); color:var(--text-dim);">${batter.balls}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:var(--font-mono); color:var(--accent-sky);">${batter.fours}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:var(--font-mono); color:var(--accent-amber);">${batter.sixes}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:var(--font-mono); font-size:12px; color:var(--text-dim);">${sr(batter.runs, batter.balls)}</td>
+        <td style="padding:8px 12px; text-align:center;"><span style="font-size:10px; font-weight:700; background:rgba(225,29,72,0.1); color:var(--accent-rose); border:1px solid rgba(225,29,72,0.25); padding:2px 8px; border-radius:10px;">OUT</span></td>
+      </tr>`;
+
+    const dismissedRows = s.battingCard.map(b => dismissedRowHTML(b)).join('');
+
+    panel.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3 style="font-family:var(--font-title); font-size:17px; font-weight:800; color:var(--text-main); margin:0;">
+            📋 Live Batting Scorecard
+          </h3>
+          <span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">
+            ${s.chasingTeam} — 2nd Innings
+          </span>
+        </div>
+        <button id="simScorecardResetBtn" style="font-family:var(--font-mono); font-size:11px; font-weight:700; padding:5px 14px; background:rgba(225,29,72,0.1); color:var(--accent-rose); border:1px solid rgba(225,29,72,0.3); border-radius:8px; cursor:pointer; transition:all 0.2s;" 
+          onmouseover="this.style.background='rgba(225,29,72,0.2)'" onmouseout="this.style.background='rgba(225,29,72,0.1)'">
+          ↺ Reset Scorecard
+        </button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border-color);">
+              <th style="text-align:left; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">Batter</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">R</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">B</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--accent-sky); font-weight:700; text-transform:uppercase;">4s</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--accent-amber); font-weight:700; text-transform:uppercase;">6s</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">SR</th>
+              <th style="text-align:center; padding:8px 12px; font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowHTML(s.striker, true)}
+            ${rowHTML(s.nonStriker, false)}
+            ${dismissedRows}
+          </tbody>
+        </table>
+      </div>`;
+
+    // Attach reset listener
+    const resetSc = document.getElementById('simScorecardResetBtn');
+    if (resetSc) {
+      resetSc.addEventListener('click', () => {
+        s.striker      = { name: 'Batter #1', runs: 0, balls: 0, fours: 0, sixes: 0 };
+        s.nonStriker   = { name: 'Batter #2', runs: 0, balls: 0, fours: 0, sixes: 0 };
+        s.nextBatterIdx = 3;
+        s.battingCard   = [];
+        this.updateScorecardUI();
+        this.appendCommentary('--', 'Batting scorecard has been reset.', 'info', null);
+      });
+    }
   },
 
   renderLiveProbChart: function() {
